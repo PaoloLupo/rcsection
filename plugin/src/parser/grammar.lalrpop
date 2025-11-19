@@ -1,0 +1,132 @@
+use std::str::FromStr;
+use crate::parser::ast::{Section, SectionType, SectionProperties, Shape, RebarConfig, RebarEntry, RebarPattern, StirrupsConfig, Spacing, Property};
+
+grammar;
+
+pub Sections: Vec<Section> = {
+    <s:Section*> => s
+};
+
+Section: Section = {
+    <k:SectionType> <id:StringLiteral> "{" <p:Properties> "}" => Section {
+        kind: k,
+        id: id,
+        properties: p,
+    }
+};
+
+SectionType: SectionType = {
+    "Beam" => SectionType::Beam,
+    "Column" => SectionType::Column,
+    "Wall" => SectionType::Wall,
+};
+
+Properties: SectionProperties = {
+    <props:Property*> => {
+        let mut properties = SectionProperties {
+            shape: None,
+            cover: None,
+            concrete: None,
+            rebar: None,
+            stirrups: None,
+            ties: None,
+        };
+        for p in props {
+            match p {
+                Property::Shape(s) => properties.shape = Some(s),
+                Property::Cover(c) => properties.cover = Some(c),
+                Property::Concrete(c) => properties.concrete = Some(c),
+                Property::Rebar(r) => properties.rebar = Some(r),
+                Property::Stirrups(s) => properties.stirrups = Some(s),
+                Property::Ties(t) => properties.ties = Some(t),
+            }
+        }
+        properties
+    }
+};
+
+Property: Property = {
+    "Shape" ":" <s:Shape> ";" => Property::Shape(s),
+    "Cover" ":" <c:Length> ";" => Property::Cover(c),
+    "Concrete" ":" <c:Num> ";" => Property::Concrete(c),
+    "Rebar" "{" <r:RebarEntries> "}" => Property::Rebar(RebarConfig { entries: r }),
+    "Stirrups" "{" <s:StirrupsBody> "}" => Property::Stirrups(s),
+    "Ties" "{" <t:StirrupsBody> "}" => Property::Ties(t),
+};
+
+Shape: Shape = {
+    "Rect" "(" <w:Length> "," <h:Length> ")" => Shape::Rect { width: w, height: h },
+    "Circle" "(" <d:Length> ")" => Shape::Circle { diameter: d },
+};
+
+RebarEntries: Vec<RebarEntry> = {
+    <e:RebarEntry*> => e
+};
+
+RebarEntry: RebarEntry = {
+    <p:RebarPattern> ":" <c:Num> "x" <s:RebarSize> <l:Layer?> ";" => RebarEntry {
+        pattern: p,
+        count: c as u32,
+        size: s,
+        layer: l.unwrap_or(0),
+    }
+};
+
+RebarPattern: RebarPattern = {
+    "Top" => RebarPattern::Top,
+    "Bottom" => RebarPattern::Bottom,
+    "Left" => RebarPattern::Left,
+    "Right" => RebarPattern::Right,
+    "Perimeter" => RebarPattern::Perimeter,
+};
+
+Layer: u32 = {
+    "layer" <n:Num> => n as u32
+};
+
+StirrupsBody: StirrupsConfig = {
+    "Size" ":" <s:RebarSize> ";" "Dist" ":" <d:SpacingList> ";" => StirrupsConfig {
+        size: s,
+        dist: d,
+    }
+};
+
+SpacingList: Vec<Spacing> = {
+    <v:SpacingItem> <vs:("," <SpacingItem>)*> => {
+        let mut list = vec![v];
+        list.extend(vs);
+        list
+    }
+};
+
+SpacingItem: Spacing = {
+    <n:Num> "@" <d:Length> => Spacing::Fixed { count: n as u32, dist: d },
+    "Rest" "@" <d:Length> => Spacing::Rest { dist: d },
+};
+
+// Terminals
+
+Length: f64 = {
+    <n:Num> "cm" => n,
+    <n:Num> "m" => n * 100.0,
+};
+
+RebarSize: String = {
+    r"#[0-9]+" => <>.to_string(),
+    r#"[0-9]+/[0-9]+""# => <>.to_string(),
+    r#"[0-9]+""# => <>.to_string(),
+};
+
+StringLiteral: String = {
+    r#""[^"]*""# => <>[1..<>.len()-1].to_string()
+};
+
+Num: f64 = {
+    r"[0-9]+(\.[0-9]+)?" => f64::from_str(<>).unwrap()
+};
+
+match {
+    r"\s*" => {}, // Skip whitespace
+    r"//[^\n\r]*[\n\r]*" => {}, // Skip comments
+    _
+}
