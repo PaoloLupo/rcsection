@@ -11,17 +11,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Install tytanic
         uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: tytanic@0.3.1
+
       - name: Install just
         uses: extractions/setup-just@v3
+
       - name: Setup typst
         id: setup-typst
         uses: typst-community/setup-typst@v4
+
       - name: Run test suite
         run: just test --no-fail-fast
+
       - name: Archive diffs
         uses: actions/upload-artifact@v4
         with:
