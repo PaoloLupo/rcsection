@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::parser::ast::{Section, SectionType, SectionProperties, Shape, RebarConfig, RebarEntry, RebarPattern, StirrupsConfig, Spacing, Property};
+use crate::parser::ast::{Section, SectionType, SectionProperties, Shape, RebarEntry, RebarPattern, StirrupsConfig, Spacing, RawProperty};
 
 grammar;
 
@@ -8,7 +8,7 @@ pub Sections: Vec<Section> = {
 };
 
 Section: Section = {
-    <k:SectionType> <id:StringLiteral> "{" <p:Properties> "}" => Section {
+    <k:SectionType> <id:StringLiteral> ":" "{" <p:Properties> "}" => Section {
         kind: k,
         id: id,
         properties: p,
@@ -16,100 +16,94 @@ Section: Section = {
 };
 
 SectionType: SectionType = {
-    "Beam" => SectionType::Beam,
-    "Column" => SectionType::Column,
-    "Wall" => SectionType::Wall,
+    "beam" => SectionType::Beam,
+    "column" => SectionType::Column,
+    "wall" => SectionType::Wall,
 };
 
 Properties: SectionProperties = {
-    <props:Property*> => {
+    <props:RawProperty*> => {
         let mut properties = SectionProperties {
             shape: None,
             cover: None,
-            concrete: None,
-            rebar: None,
-            stirrups: None,
+            fc: None,
+            rebar: Vec::new(),
             ties: None,
         };
+        
+        let mut current_ties: Option<StirrupsConfig> = None;
+
         for p in props {
             match p {
-                Property::Shape(s) => properties.shape = Some(s),
-                Property::Cover(c) => properties.cover = Some(c),
-                Property::Concrete(c) => properties.concrete = Some(c),
-                Property::Rebar(r) => properties.rebar = Some(r),
-                Property::Stirrups(s) => properties.stirrups = Some(s),
-                Property::Ties(t) => properties.ties = Some(t),
+                RawProperty::Shape(s) => {
+                    properties.shape = Some(s);
+                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
+                },
+                RawProperty::Cover(c) => {
+                    properties.cover = Some(c);
+                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
+                },
+                RawProperty::Fc(c) => {
+                    properties.fc = Some(c);
+                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
+                },
+                RawProperty::Rebar(r) => {
+                    properties.rebar.push(r);
+                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
+                },
+                RawProperty::TiesStart(size) => {
+                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
+                    current_ties = Some(StirrupsConfig { size, dist: Vec::new() });
+                },
+                RawProperty::Spacing(s) => {
+                    if let Some(ref mut ties) = current_ties {
+                        ties.dist.push(s);
+                    }
+                    // If no ties started, ignore spacing (or error?)
+                },
             }
         }
+        if let Some(ties) = current_ties { properties.ties = Some(ties); }
+        
         properties
     }
 };
 
-Property: Property = {
-    "Shape" ":" <s:Shape> ";" => Property::Shape(s),
-    "Cover" ":" <c:Length> ";" => Property::Cover(c),
-    "Concrete" ":" <c:Num> ";" => Property::Concrete(c),
-    "Rebar" "{" <r:RebarEntries> "}" => Property::Rebar(RebarConfig { entries: r }),
-    "Stirrups" "{" <s:StirrupsBody> "}" => Property::Stirrups(s),
-    "Ties" "{" <t:StirrupsBody> "}" => Property::Ties(t),
+RawProperty: RawProperty = {
+    <s:Shape> => RawProperty::Shape(s),
+    "cover" <c:Num> => RawProperty::Cover(c),
+    "fc" <c:Num> => RawProperty::Fc(c),
+    <r:RebarEntry> => RawProperty::Rebar(r),
+    "ties" <s:RebarSize> => RawProperty::TiesStart(s),
+    <s:SpacingItem> => RawProperty::Spacing(s),
 };
 
 Shape: Shape = {
-    "Rect" "(" <w:Length> "," <h:Length> ")" => Shape::Rect { width: w, height: h },
-    "Circle" "(" <d:Length> ")" => Shape::Circle { diameter: d },
-};
-
-RebarEntries: Vec<RebarEntry> = {
-    <e:RebarEntry*> => e
+    <w:Num> "x" <h:Num> => Shape::Rect { width: w, height: h },
+    "D" <d:Num> => Shape::Circle { diameter: d },
 };
 
 RebarEntry: RebarEntry = {
-    <p:RebarPattern> ":" <c:Num> "x" <s:RebarSize> <l:Layer?> ";" => RebarEntry {
+    <p:RebarPattern> <c:Num> <s:RebarSize> => RebarEntry {
         pattern: p,
         count: c as u32,
         size: s,
-        layer: l.unwrap_or(0),
     }
 };
 
 RebarPattern: RebarPattern = {
-    "Top" => RebarPattern::Top,
-    "Bottom" => RebarPattern::Bottom,
-    "Left" => RebarPattern::Left,
-    "Right" => RebarPattern::Right,
-    "Perimeter" => RebarPattern::Perimeter,
-};
-
-Layer: u32 = {
-    "layer" <n:Num> => n as u32
-};
-
-StirrupsBody: StirrupsConfig = {
-    "Size" ":" <s:RebarSize> ";" "Dist" ":" <d:SpacingList> ";" => StirrupsConfig {
-        size: s,
-        dist: d,
-    }
-};
-
-SpacingList: Vec<Spacing> = {
-    <v:SpacingItem> <vs:("," <SpacingItem>)*> => {
-        let mut list = vec![v];
-        list.extend(vs);
-        list
-    }
+    "top" => RebarPattern::Top,
+    "bot" => RebarPattern::Bottom,
+    "sides" => RebarPattern::Sides,
+    "perim" => RebarPattern::Perimeter,
 };
 
 SpacingItem: Spacing = {
-    <n:Num> "@" <d:Length> => Spacing::Fixed { count: n as u32, dist: d },
-    "Rest" "@" <d:Length> => Spacing::Rest { dist: d },
+    <n:Num> "@" <d:Num> => Spacing::Fixed { count: n as u32, dist: d },
+    "rto" "@" <d:Num> => Spacing::Rest { dist: d },
 };
 
 // Terminals
-
-Length: f64 = {
-    <n:Num> "cm" => n,
-    <n:Num> "m" => n * 100.0,
-};
 
 RebarSize: String = {
     r"#[0-9]+" => <>.to_string(),

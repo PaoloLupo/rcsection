@@ -1,24 +1,32 @@
-#import plugin("parser.wasm"): priv_parse
+#import plugin("parser.wasm"): priv_parse_and_generate
+#import "draw.typ": draw
 
 #let parse(expr) = {
-  cbor(priv_parse(cbor.encode(expr)))
+  let data = cbor(priv_parse_and_generate(cbor.encode(expr)))
+  data
 }
 
-#show raw.where(lang: "rcs"): it => parse(it.text)
+#show raw.where(lang: "rcs"): it => draw(parse(it.text))
 
 ```rcs
-Beam "V-101" {
-    Shape: Rect(30cm, 40cm);
-    Cover: 4cm;
-    Concrete: 280;
-    Rebar {
-        Top: 2 x 1/2";
-        Bottom: 3 x 1";
-        Bottom: 2 x 3/4" layer 1;
-    }
-    Stirrups {
-        Size: 3/8";
-        Dist: 1@5cm, 5@10cm, Rest@20cm;
-    }
-}
+beam "V-101":
+    30 x 60
+    cover 5
+    fc 280
+
+    top 2 1"
+    bot 3 1"
+    bot 2 3/4"
+
+    ties 3/8" 1@5 5@10 rto@20
+
+beam "V-103":
+    40 x 60
+    cover 4
+    fc 280
+
+    top 2 1"
+    bot 2 2"
+
+    ties 3/8" 1@5 5@10 rto@20
 ```

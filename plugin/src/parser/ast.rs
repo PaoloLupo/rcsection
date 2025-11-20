@@ -17,11 +17,10 @@ pub enum SectionType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SectionProperties {
     pub shape: Option<Shape>,
-    pub cover: Option<f64>,    // in cm
-    pub concrete: Option<f64>, // f'c
-    pub rebar: Option<RebarConfig>,
-    pub stirrups: Option<StirrupsConfig>,
-    pub ties: Option<StirrupsConfig>, // Ties share structure with Stirrups
+    pub cover: Option<f64>,           // in cm
+    pub fc: Option<f64>,              // f'c (renamed from concrete)
+    pub rebar: Vec<RebarEntry>,       // Flattened list of rebar lines
+    pub ties: Option<StirrupsConfig>, // Unified ties/stirrups
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -31,24 +30,17 @@ pub enum Shape {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct RebarConfig {
-    pub entries: Vec<RebarEntry>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RebarEntry {
     pub pattern: RebarPattern,
     pub count: u32,
     pub size: String, // e.g., "#3", "1/2\""
-    pub layer: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RebarPattern {
     Top,
     Bottom,
-    Left,
-    Right,
+    Sides,
     Perimeter,
 }
 
@@ -64,12 +56,13 @@ pub enum Spacing {
     Rest { dist: f64 },              // dist in cm
 }
 
+// Helper enum for parsing mixed properties
 #[derive(Debug, Clone)]
-pub enum Property {
+pub enum RawProperty {
     Shape(Shape),
     Cover(f64),
-    Concrete(f64),
-    Rebar(RebarConfig),
-    Stirrups(StirrupsConfig),
-    Ties(StirrupsConfig),
+    Fc(f64),
+    Rebar(RebarEntry),
+    TiesStart(String),
+    Spacing(Spacing),
 }
