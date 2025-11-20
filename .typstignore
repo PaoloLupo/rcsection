@@ -1,0 +1,10 @@
+.github
+scripts
+tests
+Justfile
+target
+plugin
+Cargo.toml
+Cargo.lock
+docs/*
+!docs/*.pdf
