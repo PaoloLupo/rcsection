@@ -18,7 +18,7 @@ doc:
 
 # Run test suite
 test *args:
-    # cargo test
+    cargo test
     tt run {{ args }}
 
 # Update test cases (change previous images references)
