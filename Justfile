@@ -12,6 +12,10 @@ python := if os() == "macos" {
 default:
     @just --list --unsorted
 
+# Generate documentation
+doc:
+    typst compile docs/manual.typ docs/manual.pdf
+
 # Run test suite
 test *args:
     # cargo test
@@ -44,3 +48,6 @@ uninstall-preview: (remove "@preview")
 plugin:
     cargo build --release --target wasm32-unknown-unknown
     cp target/wasm32-unknown-unknown/release/parser.wasm src/
+
+# run ci suite
+ci: test doc
