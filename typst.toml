@@ -1,0 +1,8 @@
+[package]
+name = "rcsections"
+version = "0.0.1"
+entrypoint = "src/lib.typ"
+authors = [
+    "PaoloLupo <https://github.com/PaoloLupo/>"
+]
+license = "MIT"
