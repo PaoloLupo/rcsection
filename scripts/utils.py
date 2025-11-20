@@ -4,6 +4,8 @@ import platform
 import sys
 from pathlib import Path
 
+import tomllib
+
 
 def get_data_dir():
     if platform.system() == "Windows":
@@ -34,13 +36,10 @@ def read_typst_toml(root_path: Path):
     name = None
     version = None
 
-    with open(toml_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("name"):
-                name = line.split("=")[1].strip().strip('"').strip("'")
-            elif line.startswith("version"):
-                version = line.split("=")[1].strip().strip('"').strip("'")
+    with open(toml_path, "rb") as f:
+        data = tomllib.load(f)
+        name = data["package"]["name"]
+        version = data["package"]["version"]
 
     if not name or not version:
         print(f"ERROR: nombre o version no encontrados en {toml_path}")
