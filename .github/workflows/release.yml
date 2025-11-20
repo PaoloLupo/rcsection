@@ -1,0 +1,92 @@
+name: Package and push to registry repo
+on:
+  push:
+    tags: [v*]
+
+env:
+  REGISTRY_REPO: PaoloLupo/typst-packages
+  PATH_PREFIX: packages/preview
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.13
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Setup typst
+        id: setup-typst
+        uses: typst-community/setup-typst@v4
+
+      - name: Get package metadata
+        shell: python
+        run: |
+          import tomlib
+          import os
+          with open("typst.toml", "rb") as f:
+            data = tomllib.load(f)
+          pkg_name = data['package']['name']
+          pkg_version = data['package']['version']
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f"PKG_NAME={pkg_name}\n")
+              f.write(f"PKG_VERSION={pkg_version}\n")
+
+      - name: Verify version matches tag
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "v${PKG_VERSION}" ]]; then
+            echo "Error: Package version (${PKG_VERSION}) does not match release tag (${GITHUB_REF_NAME})"
+            exit 1
+          fi
+
+      - name: Build package
+        run: |
+          just plugin
+          just package out
+
+      - name: Checkout package registry
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.REGISTRY_REPO }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: typst-packages
+
+      - name: Release package
+        run: |
+          # Definir rutas
+          TARGET_DIR="typst-packages/${{ env.PATH_PREFIX }}/${PKG_NAME}/${PKG_VERSION}"
+          SOURCE_DIR="out/${PKG_NAME}/${PKG_VERSION}"
+
+          echo "Moving from $SOURCE_DIR to $TARGET_DIR"
+
+          # Crear directorio destino
+          mkdir -p "typst-packages/${{ env.PATH_PREFIX }}/${PKG_NAME}"
+
+          # Mover la carpeta generada por tu script python
+          # Nota: tu script package.py crea la estructura out/<nombre>/<version>
+          mv "$SOURCE_DIR" "$TARGET_DIR"
+
+          # Limpiar
+          rm -rf out
+
+          # Configurar Git y pushear
+          GIT_USER_NAME="$(git log -1 --pretty=format:'%an')"
+          GIT_USER_EMAIL="$(git log -1 --pretty=format:'%ae')"
+
+          cd typst-packages
+          git config user.name "${GIT_USER_NAME}"
+          git config user.email "${GIT_USER_EMAIL}"
+
+          # Crear rama y commit
+          BRANCH_NAME="${PKG_NAME}-${PKG_VERSION}"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+          git commit -m "${PKG_NAME}:${PKG_VERSION}"
+          git push --set-upstream origin "$BRANCH_NAME"
