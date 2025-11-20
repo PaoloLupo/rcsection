@@ -2,7 +2,7 @@
 
 #set page(height: auto, width: auto, margin: 2pt)
 #set text(lang: "es")
-#show: init_rcs.with()
+#show: init_rcs
 
 ```rcs
 beam "V-105":

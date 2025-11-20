@@ -5,7 +5,7 @@
 ///  -> content
 #let parse(
   /// The expression to parse.
-  expr
+  expr,
 ) = {
   let data = cbor(priv_parse_and_generate(cbor.encode(expr)))
   data
