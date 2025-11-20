@@ -70,15 +70,11 @@ def should_include(path, root_path, ignores):
     # as_posix() asegura que use '/' incluso en Windows para compatibilidad con fnmatch
     rel_path = path.relative_to(root_path).as_posix()
 
-    # Por defecto incluimos todo
     include = True
 
-    # Si no hay reglas, incluimos todo
     if not ignores:
         return True
 
-    # Procesamos las reglas en orden.
-    # La última regla que coincida es la que decide (esto permite que ! funcione).
     for pattern in ignores:
         is_negation = pattern.startswith("!")
         if is_negation:
@@ -86,12 +82,9 @@ def should_include(path, root_path, ignores):
         else:
             rule = pattern
 
-        # Ajuste para directorios: si la regla termina en /, solo coincide con directorios
-        # (Aquí simplificamos y quitamos la barra final para coincidir el nombre)
         if rule.endswith("/"):
             rule = rule[:-1]
 
-        # Lógica de coincidencia estilo git
         match = False
 
         if "/" in rule:
