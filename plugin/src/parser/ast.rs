@@ -15,10 +15,21 @@ pub enum SectionType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum View {
+    Section,
+    Longitudinal,
+    Both,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SectionProperties {
     pub shape: Option<Shape>,
-    pub cover: Option<f64>,           // in cm
-    pub fc: Option<f64>,              // f'c (renamed from concrete)
+    pub cover: Option<f64>, // in cm
+    pub span: Option<f64>,  // in cm
+    pub view: Option<View>,
+    pub scale_section: Option<f64>,
+    pub scale_long: Option<f64>,
+    pub concrete: Option<f64>,        // fc in kg/cm2
     pub rebar: Vec<RebarEntry>,       // Flattened list of rebar lines
     pub ties: Option<StirrupsConfig>, // Unified ties/stirrups
 }
@@ -59,10 +70,13 @@ pub enum Spacing {
 // Helper enum for parsing mixed properties
 #[derive(Debug, Clone)]
 pub enum RawProperty {
-    Shape(Shape),
     Cover(f64),
-    Fc(f64),
+    Span(f64),
+    Concrete(f64),
     Rebar(RebarEntry),
-    TiesStart(String),
-    Spacing(Spacing),
+    Ties(StirrupsConfig),
+    View(View),
+    Scale(f64),
+    ScaleSection(f64),
+    ScaleLong(f64),
 }

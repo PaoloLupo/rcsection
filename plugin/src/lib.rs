@@ -39,7 +39,10 @@ pub fn priv_parse_and_generate(expr: &[u8]) -> Result<Vec<u8>, String> {
     let expr: String = ciborium::from_reader(expr).map_err_to_string()?;
     let sections = parser::parse(&expr).map_err_to_string()?;
 
-    let drawings: Vec<geometry::Drawing> = sections.iter().map(|s| geometry::generate(s)).collect();
+    let drawings: Vec<geometry::Drawing> = sections
+        .iter()
+        .flat_map(|s| geometry::generate(s))
+        .collect();
 
     let expr = cbor_encode(&drawings).map_err_to_string()?;
     Ok(expr)

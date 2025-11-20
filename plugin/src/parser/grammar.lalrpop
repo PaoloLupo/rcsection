@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::parser::ast::{Section, SectionType, SectionProperties, Shape, RebarEntry, RebarPattern, StirrupsConfig, Spacing, RawProperty};
+use crate::parser::ast::{Section, SectionType, SectionProperties, Shape, RebarEntry, RebarPattern, StirrupsConfig, Spacing, RawProperty, View};
 
 grammar;
 
@@ -8,10 +8,14 @@ pub Sections: Vec<Section> = {
 };
 
 Section: Section = {
-    <k:SectionType> <id:StringLiteral> ":" "{" <p:Properties> "}" => Section {
-        kind: k,
-        id: id,
-        properties: p,
+    <k:SectionType> <id:StringLiteral> ":" "{" <s:Shape> <p:Properties> "}" => {
+        let mut props = p;
+        props.shape = Some(s);
+        Section {
+            kind: k,
+            id: id,
+            properties: props,
+        }
     }
 };
 
@@ -23,64 +27,65 @@ SectionType: SectionType = {
 
 Properties: SectionProperties = {
     <props:RawProperty*> => {
-        let mut properties = SectionProperties {
-            shape: None,
-            cover: None,
-            fc: None,
-            rebar: Vec::new(),
-            ties: None,
-        };
-        
-        let mut current_ties: Option<StirrupsConfig> = None;
+        let mut shape = None;
+        let mut cover = None;
+        let mut span = None;
+        let mut concrete = None;
+        let mut rebar = Vec::new();
+        let mut ties = None;
+        let mut view = None;
+        let mut scale_section = None;
+        let mut scale_long = None;
 
         for p in props {
             match p {
-                RawProperty::Shape(s) => {
-                    properties.shape = Some(s);
-                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
+                RawProperty::Cover(c) => cover = Some(c),
+                RawProperty::Span(s) => span = Some(s),
+                RawProperty::Concrete(c) => concrete = Some(c),
+                RawProperty::Rebar(r) => rebar.push(r),
+                RawProperty::Ties(t) => ties = Some(t),
+                RawProperty::View(v) => view = Some(v),
+                RawProperty::Scale(s) => {
+                    scale_section = Some(s);
+                    scale_long = Some(s);
                 },
-                RawProperty::Cover(c) => {
-                    properties.cover = Some(c);
-                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
-                },
-                RawProperty::Fc(c) => {
-                    properties.fc = Some(c);
-                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
-                },
-                RawProperty::Rebar(r) => {
-                    properties.rebar.push(r);
-                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
-                },
-                RawProperty::TiesStart(size) => {
-                    if let Some(ties) = current_ties.take() { properties.ties = Some(ties); }
-                    current_ties = Some(StirrupsConfig { size, dist: Vec::new() });
-                },
-                RawProperty::Spacing(s) => {
-                    if let Some(ref mut ties) = current_ties {
-                        ties.dist.push(s);
-                    }
-                    // If no ties started, ignore spacing (or error?)
-                },
+                RawProperty::ScaleSection(s) => scale_section = Some(s),
+                RawProperty::ScaleLong(s) => scale_long = Some(s),
             }
         }
-        if let Some(ties) = current_ties { properties.ties = Some(ties); }
-        
-        properties
+
+        SectionProperties { shape, cover, span, concrete, rebar, ties, view, scale_section, scale_long }
     }
 };
 
 RawProperty: RawProperty = {
-    <s:Shape> => RawProperty::Shape(s),
-    "cover" <c:Num> => RawProperty::Cover(c),
-    "fc" <c:Num> => RawProperty::Fc(c),
+    "cover" <n:Num> => RawProperty::Cover(n),
+    "span" <n:Num> => RawProperty::Span(n),
+    "fc" <n:Num> => RawProperty::Concrete(n),
     <r:RebarEntry> => RawProperty::Rebar(r),
-    "ties" <s:RebarSize> => RawProperty::TiesStart(s),
-    <s:SpacingItem> => RawProperty::Spacing(s),
+    "ties" <t:StirrupsConfig> => RawProperty::Ties(t),
+    "view" <v:ViewType> => RawProperty::View(v),
+    "scale" <n:Num> => RawProperty::Scale(n),
+    "scale" <n:Num> ":" <m:Num> => RawProperty::Scale(n / m),
+    "scale" "section" <n:Num> => RawProperty::ScaleSection(n),
+    "scale" "section" <n:Num> ":" <m:Num> => RawProperty::ScaleSection(n / m),
+    "scale" "long" <n:Num> => RawProperty::ScaleLong(n),
+    "scale" "long" <n:Num> ":" <m:Num> => RawProperty::ScaleLong(n / m),
+};
+
+ViewType: View = {
+    "section" => View::Section,
+    "longitudinal" => View::Longitudinal,
+    "both" => View::Both,
 };
 
 Shape: Shape = {
     <w:Num> "x" <h:Num> => Shape::Rect { width: w, height: h },
     "D" <d:Num> => Shape::Circle { diameter: d },
+};
+
+StirrupsConfig: StirrupsConfig = {
+    <s:RebarSize> <d:SpacingItem+> => StirrupsConfig { size: s, dist: d }
 };
 
 RebarEntry: RebarEntry = {
@@ -122,5 +127,10 @@ Num: f64 = {
 match {
     r"\s*" => {}, // Skip whitespace
     r"//[^\n\r]*[\n\r]*" => {}, // Skip comments
+    "beam", "column", "wall",
+    "cover", "span", "fc", "ties",
+    "top", "bot", "sides", "perim",
+    "rto", "view", "section", "longitudinal", "both",
+    "x", "D", ":", "@", "{", "}",
     _
 }
