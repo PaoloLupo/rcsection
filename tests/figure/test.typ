@@ -1,6 +1,6 @@
-#import "/src/rcsection.typ": init_rcs
+#import "/src/rcsection.typ": *
 
-#show: init_rcs
+#show: init_rcsection
 #set page(height: auto, width: auto, margin: 2pt)
 
 #figure(
