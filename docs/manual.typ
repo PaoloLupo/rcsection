@@ -140,14 +140,14 @@ armado en Typst.
 
 ```typ
 #import "@preview/rcsection:0.1.0"
-#show: init_rcsections
+#show: init_rcsection
 ```
 
+= Sintaxis
 Para representar un elemento estructural se define un encabezado seguido de dos puntos (`:`)
 y un bloque indentado con las propiedades:
 
 ```
-<propiedad global>
 <tipo> <identificador>:
   <propiedad> <valor>
   <propiedad> <valor>
@@ -157,7 +157,56 @@ Podemos separar la sintaxis en dos partes:
 - La primera parte es la definición de las propiedades globales que se aplican a todas las secciones.
 - La segunda parte es la definición de cada sección.
 
-= Sintaxis
+== Vista
+Las vistas soportadas son:
+
+#table(
+  columns: (1fr, 3fr),
+  [`section`], [Vista de sección (corte)],
+  [`long`], [Vista longitudinal],
+)
+
+== Propiedades globales
+Se ubican al inicio del bloque y determina las propiedades que son aplicadas a todas las secciones definidas, si estas no son definidas, se toman los valores por defecto.
+
+```
+set:
+  <propiedad global> <valor>
+```
+
+=== Escala de dibujo
+Define la escala de dibujo para los tipos de vista. Se representa como una relación.
+
+```
+scale <vista> <valor>
+```
+_Valor por defecto: `1:20`_
+
+=== Dimensiones
+Habilita la gráfica de las cotas para las dimensiones de la sección.
+
+```
+dims <on | off>
+```
+_Valor por defecto: `off`_
+
+=== Etiquetas
+Habilita la gráfica de las etiquetas para los aceros de refuerzo.
+
+```
+labels <mode>
+```
+
+Los modos soportados son:
+
+#table(
+  columns: (1fr, 3fr),
+  [`off`], [Deshabilita las etiquetas \ _valor por defecto_],
+  [`callout`], [Cantidad y tamaño de acero con flechas],
+  [`legend`], [Una leyenda debajo del gráfico con cantidad y tamaño de acero],
+  [`both`], [Modos `callout` y `legend` activados],
+)
+
 == Tipos de secciones
 Para la definición del tipo de sección, son soportados:
 
@@ -169,7 +218,7 @@ Para la definición del tipo de sección, son soportados:
 )
 
 == Identificador
-Se refiere al nombre único que se le asigna a cada sección. Ejm: `V-101`
+Se refiere al nombre único que se le asigna a cada sección. Ejm: `"V-101"`
 
 == Propiedades geométricas
 Para la definición de la geometría de una sección (por default en cm), se tiene:
@@ -179,6 +228,8 @@ Para la definición de la geometría de una sección (por default en cm), se tie
   [`ancho x alto`], [Define una sección Rectangular \ _ejemplo: `30 x 60`_],
   [`R ancho alto`], [Define una sección Rectangular \ _ejemplo: `R 30 60`_],
   [`D diámetro`], [Define una sección Circular \ _ejemplo: `D 50`_],
+  [`T ancho_total alto_total espesor_ala espesor_alma `], [Define una sección en T \ _ejemplo: `T 60 60 20 30`_],
+  [`L ancho_total alto_total espesor_ala espesor_alma `], [Define una sección en L \ _ejemplo: `L 50 50 15 25`_],
   [`cover valor`], [Valor del recubrimiento \ _ejemplo: `cover 2`_],
 )
 
@@ -186,9 +237,8 @@ Para la definición de la geometría de una sección (por default en cm), se tie
 Para la ubicación de los aceros longitudinales, el lenguaje toma en cuenta el orden en las que
 se declaren.
 
-=== Sintaxis
 ```
-<zona> <cantidad> <tamaño>
+<zona> <cantidad> <tamaño> <cantidad> <tamaño> ...
 ```
 
 === Zonas
@@ -196,9 +246,10 @@ Las valores para definir zonas son:
 
 #table(
   columns: (1fr, 3fr),
-  [`top`], [Acero superior \ _Ejemplo: `top 2 1"`_],
+  [`top`], [Acero superior \ _Ejemplo: `top 1 3/4" 1 1/2" 1 3/4"`_],
   [`bot`], [Acero inferior \ _Ejemplo: `bot 2 #4`_],
-  [`sides`], [Acero en las caras laterales \ _Ejemplo: `sides 2 3/4"`_],
+  [`mid`], [Acero en la zona media \ _Ejemplo: `mid 2 3/4"`_],
+  [`sides`], [Acero en los lados izquierdo y derecho \ _Ejemplo: `sides 2 #5`_],
   [`perim`], [Distribución perimetral equitativa (Para columnas) \ _Ejemplo: `perim 7 1"`_],
 )
 
