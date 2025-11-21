@@ -42,7 +42,7 @@ remove target:
 # Uninstalls the library with the "@local" prefix
 uninstall: (remove "@local")
 
-# Uninstalls the library with the "@local" prefix
+# Uninstalls the library with the "@preview" prefix
 uninstall-preview: (remove "@preview")
 
 # Build the wasm plugin and copy in src directory
