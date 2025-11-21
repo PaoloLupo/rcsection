@@ -1,5 +1,10 @@
+#import "../src/rcsection.typ": init_rcsection
 #let package-meta = toml("/typst.toml").package
+#let pkg-authors = package-meta.authors.first().split(" ")
+#let removed = pkg-authors.remove(-1)
+#let author = pkg-authors.join(" ")
 #let date = datetime.today()
+#show: init_rcsection
 
 #set document(
   title: "Manual de RCSections",
@@ -12,9 +17,13 @@
 )
 
 #set text(
-  size: 15pt
+  size: 15pt,
+  lang: "es",
 )
 
+#set heading(numbering: "1.")
+
+#set par(leading: 0.5em, justify: true)
 
 #set table(
   stroke: (_, y) => if y != -1 {(bottom: 0.5pt)},
@@ -29,6 +38,27 @@
     it.text,
   )
 }
+
+#{
+  v(1fr)
+  strong[
+    #set align(center)
+    #set text(size: 2em)
+    RCSections: Gráficos \ para secciones de concreto armado \ en Typst
+  ]
+  [
+    #set align(center)
+    #set text(size: 1.5em)
+    Version #package-meta.version \
+    #author \
+    #date.display("[year]")
+  ]
+  v(1fr)
+  pagebreak(weak: true)
+}
+
+#outline()
+#pagebreak()
 
 = Introducción
 RCSections es un pequeño lenguaje para Typst que permite representar secciones de concreto
@@ -59,10 +89,14 @@ Podemos separar la sintaxis en dos partes:
 
 = Sintaxis
 == Tipos de secciones
-Para la definición de los tipos, los soportados son:
-- `beam` (Viga)
-- `column`(Columna)
-- `wall` (Muro/Placa)
+Para la definición del tipo de sección, son soportados:
+
+#table(
+  columns: (1fr,3fr),
+  [`beam`], [Define una viga],
+  [`column`], [Define una columna],
+  [`wall`], [Define un muro/placa],
+)
 
 == Identificador
 Se refiere al nombre único que se le asigna a cada sección. Ejm: `V-101`
@@ -129,13 +163,23 @@ _Ejemplo: `1@5 4@10 rto@20`_
 
 == Ejemplos
 
-=== Caso A: Viga peraltada
+=== Ejemplo 1: Viga peraltada
 ```
-beam v-101:
+beam "V-101":
   30 x 60
   cover 4
   top 2 1/2"
-  bot 2 3/4"
-  bot 3 1/2"
+  bot 2 1/2"
+  bot 3 3/4"
+  ties 3/8" 1@5 5@10 rto@25
+```
+
+```rcs
+beam "V-101":
+  30 x 40
+  cover 4
+  top 2 1/2"
+  bot 2 1/2"
+  bot 3 1"
   ties 3/8" 1@5 5@10 rto@25
 ```
