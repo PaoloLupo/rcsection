@@ -9,11 +9,11 @@
 #set document(
   title: "Manual de RCSections",
   author: "Paolo Guillen Lupo",
-  date: date
+  date: date,
 )
 
 #set page(
-  margin: (top: 0.75in, rest: 0.5in)
+  margin: (top: 0.75in, rest: 0.5in),
 )
 
 #set text(
@@ -26,7 +26,7 @@
 #set par(leading: 0.5em, justify: true)
 
 #set table(
-  stroke: (_, y) => if y != -1 {(bottom: 0.5pt)},
+  stroke: (_, y) => if y != -1 { (bottom: 0.5pt) },
 )
 
 #show raw.where(block: false): it => {
@@ -92,7 +92,7 @@ Podemos separar la sintaxis en dos partes:
 Para la definición del tipo de sección, son soportados:
 
 #table(
-  columns: (1fr,3fr),
+  columns: (1fr, 3fr),
   [`beam`], [Define una viga],
   [`column`], [Define una columna],
   [`wall`], [Define un muro/placa],
@@ -102,10 +102,10 @@ Para la definición del tipo de sección, son soportados:
 Se refiere al nombre único que se le asigna a cada sección. Ejm: `V-101`
 
 == Propiedades geométricas
-Para la definición de la geometría de una sección, se tiene:
+Para la definición de la geometría de una sección (por default en cm), se tiene:
 
 #table(
-  columns: (1fr,3fr),
+  columns: (1fr, 3fr),
   [`ancho x alto`], [Define una sección Rectangular \ _ejemplo: `30 x 60`_],
   [`R ancho alto`], [Define una sección Rectangular \ _ejemplo: `R 30 60`_],
   [`D diámetro`], [Define una sección Circular \ _ejemplo: `D 50`_],
@@ -176,7 +176,7 @@ beam "V-101":
 
 ```rcs
 beam "V-101":
-  30 x 40
+  30 x 30
   cover 4
   top 2 1/2"
   bot 2 1/2"
