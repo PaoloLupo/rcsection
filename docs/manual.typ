@@ -82,7 +82,7 @@
     )
   } else if it.lang.starts-with("rcs-example") {
     let dir = ltr
-    let inset = 0pt
+    let inset = 0.5em
     let width = 50%
 
     if it.lang.ends-with("-wide") {

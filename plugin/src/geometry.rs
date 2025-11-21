@@ -271,6 +271,14 @@ pub fn generate(section: &Section) -> Vec<Drawing> {
                         add_rebar_circle(&mut section_drawing, x, y, bar_diam, &entry.size);
                     }
                 }
+            } else if let RebarPattern::Sides = entry.pattern {
+                draw_sides_pattern(
+                    &mut section_drawing,
+                    props.shape.as_ref(),
+                    entry,
+                    base_inset,
+                    base_inset,
+                );
             }
         }
 
@@ -508,6 +516,47 @@ fn draw_linear_pattern(
                 0.0
             };
             add_rebar_circle(drawing, x, y, bar_diam, &entry.size);
+        }
+    }
+}
+
+fn draw_sides_pattern(
+    drawing: &mut Drawing,
+    shape: Option<&Shape>,
+    entry: &crate::parser::ast::RebarEntry,
+    v_inset: f64,
+    h_inset: f64,
+) {
+    let bar_diam = parse_size(&entry.size);
+    if let Some(Shape::Rect { width, height }) = shape {
+        // Distribute along Y axis, on both Left and Right sides
+        let x_left = -width / 2.0 + h_inset + bar_diam / 2.0;
+        let x_right = width / 2.0 - h_inset - bar_diam / 2.0;
+
+        // Vertical range: avoid top/bottom bars.
+        // Assume top/bot bars take up approx v_inset + 2.5cm space?
+        // Let's leave a margin.
+        let margin = 2.5; // cm
+        let start_y = height / 2.0 - v_inset - margin;
+        let end_y = -height / 2.0 + v_inset + margin;
+
+        let step = if entry.count > 1 {
+            (end_y - start_y) / (entry.count as f64 - 1.0)
+        } else {
+            0.0
+        };
+
+        for i in 0..entry.count {
+            let y = if entry.count > 1 {
+                start_y + (i as f64) * step
+            } else {
+                0.0
+            };
+
+            // Left side
+            add_rebar_circle(drawing, x_left, y, bar_diam, &entry.size);
+            // Right side
+            add_rebar_circle(drawing, x_right, y, bar_diam, &entry.size);
         }
     }
 }
