@@ -1,12 +1,8 @@
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
 root := justfile_directory()
-
 export TYPST_ROOT := root
-
-python := if os() == "macos" {
-    "python3"
-} else {
-    "python"
-}
+python := if os() == "macos" { "python3" } else if os() == "windows" { "py" } else { "python" }
 
 [private]
 default:
