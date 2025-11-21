@@ -1,8 +1,8 @@
 [package]
 name = "rcsection"
-version = "0.0.1"
+version = "0.1.0"
 entrypoint = "src/rcsection.typ"
 authors = [
-    "PaoloLupo <https://github.com/PaoloLupo/>"
+    "Paolo Guillen Lupo <https://github.com/PaoloLupo/>"
 ]
 license = "MIT"
