@@ -1,10 +1,9 @@
-#import "../src/rcsection.typ": init_rcsection
+#import "../src/rcsection.typ": draw, init_rcsection, parse
 #let package-meta = toml("/typst.toml").package
 #let pkg-authors = package-meta.authors.first().split(" ")
 #let removed = pkg-authors.remove(-1)
 #let author = pkg-authors.join(" ")
 #let date = datetime.today()
-#show: init_rcsection
 
 #set document(
   title: "Manual de RCSections",
@@ -37,6 +36,77 @@
     radius: 0.3em,
     it.text,
   )
+}
+
+#let example(path, caption: none, wide: false) = {
+  figure(
+    kind: "example",
+    supplement: "Ejemplo",
+    caption: caption,
+    raw(
+      block: true,
+      lang: if wide { "rcs-example-wide" } else { "rcs-example" },
+      read(path).trim("\n"),
+    ),
+  )
+}
+
+#show figure.where(kind: "example"): it => block(
+  breakable: false,
+  {
+    set par(justify: false, spacing: 0.6em)
+    set text(hyphenate: auto, overhang: false)
+    {
+      set align(left)
+      if it.caption in (none, [], "") {
+        strong[#it.supplement #it.counter.display()]
+      } else [
+        #strong[#it.supplement #it.counter.display(): ] #it.caption.body
+      ]
+    }
+    box(
+      stroke: 1pt,
+      it.body,
+    )
+  },
+)
+
+#show raw.where(block: true): it => {
+  if it.lang == none or not it.lang.starts-with("rcs") {
+    block(
+      width: 100%,
+      fill: luma(85%),
+      inset: 0.5em,
+      stroke: 1pt,
+      it.text,
+    )
+  } else if it.lang.starts-with("rcs-example") {
+    let dir = ltr
+    let inset = 0pt
+    let width = 50%
+
+    if it.lang.ends-with("-wide") {
+      dir = ttb
+      inset = (y: 1em)
+      width = 100%
+    }
+
+    align(center, stack(
+      dir: dir,
+      {
+        set text(size: 1em)
+        block(
+          width: width,
+          inset: 1em,
+          align(left, "```rcs\n" + it.text + "\n```"),
+        )
+      },
+
+      align(horizon, block(inset: inset, width: width, raw(block: true, lang: "rcs", it.text))),
+    ))
+  } else {
+    it
+  }
 }
 
 #{
@@ -163,23 +233,10 @@ _Ejemplo: `1@5 4@10 rto@20`_
 
 == Ejemplos
 
-=== Ejemplo 1: Viga peraltada
-```
-beam "V-101":
-  30 x 60
-  cover 4
-  top 2 1/2"
-  bot 2 1/2"
-  bot 3 3/4"
-  ties 3/8" 1@5 5@10 rto@25
-```
+#show: init_rcsection
 
-```rcs
-beam "V-101":
-  30 x 30
-  cover 4
-  top 2 1/2"
-  bot 2 1/2"
-  bot 3 1"
-  ties 3/8" 1@5 5@10 rto@25
-```
+#example("../examples/minimal.rcs", caption: "Viga peraltada")
+
+#example("../examples/columna.rcs", caption: "Columna")
+
+#example("../examples/circular.rcs", caption: "Muro")
