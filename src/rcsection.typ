@@ -11,7 +11,7 @@
   data
 }
 
-#let init_rcs(body, ..options) = {
+#let init_rcsection(body, ..options) = {
   show raw.where(lang: "rcs"): it => draw(parse(it.text))
   body
 }
