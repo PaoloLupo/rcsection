@@ -1,7 +1,7 @@
 [package]
-name = "rcsections"
+name = "rcsection"
 version = "0.0.1"
-entrypoint = "src/lib.typ"
+entrypoint = "src/rcsection.typ"
 authors = [
     "PaoloLupo <https://github.com/PaoloLupo/>"
 ]

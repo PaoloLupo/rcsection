@@ -1,4 +1,4 @@
-#import "/src/lib.typ": *
+#import "/src/rcsection.typ": *
 
 #set page(height: auto, width: auto, margin: 2pt)
 #set text(lang: "es")

@@ -1,4 +1,4 @@
-#import "/src/lib.typ": init_rcs
+#import "/src/rcsection.typ": init_rcs
 
 #show: init_rcs
 #set page(height: auto, width: auto, margin: 2pt)
