@@ -21,6 +21,10 @@ test *args:
     cargo test
     tt run {{ args }}
 
+# Generate tests from examples
+gen-test:
+    {{ python }} ./scripts/gen_test.py
+
 # Update test cases (change previous images references)
 update *args:
     tt update {{ args }}
@@ -45,9 +49,10 @@ uninstall: (remove "@local")
 # Uninstalls the library with the "@local" prefix
 uninstall-preview: (remove "@preview")
 
+# Build the wasm plugin and copy in src directory
 plugin:
     cargo build --release --target wasm32-unknown-unknown
     cp target/wasm32-unknown-unknown/release/parser.wasm src/
 
-# run ci suite
+# run test suite and documentation
 ci: test doc

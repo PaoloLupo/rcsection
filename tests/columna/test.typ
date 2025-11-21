@@ -7,5 +7,5 @@
 #raw(
   block: true,
   lang: "rcs",
-  read("../../examples/minimal.rcs").trim("\n"),
+  read("../../examples/columna.rcs").trim("\n"),
 )

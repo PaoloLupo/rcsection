@@ -1,6 +1,7 @@
 .github
 .gitignore
 scripts
+examples
 tests
 Justfile
 target
