@@ -83,7 +83,6 @@ pub fn generate(section: &Section) -> Vec<Drawing> {
     if show_section {
         let mut section_drawing = Drawing::new();
         section_drawing.id = Some(format!("{} (Section)", section.id));
-        section_drawing.id = Some(format!("{} (Section)", section.id));
         section_drawing.scale = props.scale_section;
 
         // Draw Concrete Shape
