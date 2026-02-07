@@ -1,5 +1,6 @@
-column "C-Circ":
-  D 50
-  cover 4
-  perim 8 3/4"
-  ties 3/8" 1@5 5@10 rto@20
+section "C-Circ":
+    shape circle 50
+    concrete:
+        cover 4
+    perim 8 #6
+    ties #3 1@5 5@10 rto@20

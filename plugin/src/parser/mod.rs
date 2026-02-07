@@ -7,7 +7,7 @@ lalrpop_mod!(
     "/parser/grammar.rs"
 );
 
-pub fn parse(input: &str) -> Result<Vec<ast::Section>, String> {
+pub fn parse(input: &str) -> Result<Vec<ast::AstNode>, String> {
     let preprocessed = preprocess(input);
     grammar::SectionsParser::new()
         .parse(&preprocessed)
@@ -16,33 +16,33 @@ pub fn parse(input: &str) -> Result<Vec<ast::Section>, String> {
 
 fn preprocess(input: &str) -> String {
     let mut output = String::new();
-    let mut lines = input.lines();
-    let mut current_indent = 0;
+    let mut indent_stack = vec![0];
 
-    while let Some(line) = lines.next() {
+    for line in input.lines() {
         let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("#") {
+        if trimmed.is_empty() || trimmed.starts_with("//") {
             continue;
         }
 
         let indent = line.chars().take_while(|c| c.is_whitespace()).count();
 
-        // Heuristic: Section headers end with ":"
+        while indent < *indent_stack.last().unwrap() {
+            indent_stack.pop();
+            output.push_str("}\n");
+        }
+
         if trimmed.ends_with(":") {
-            if current_indent > 0 {
-                output.push_str("}\n");
-                current_indent = 0;
-            }
             output.push_str(trimmed);
             output.push_str(" {\n");
-            current_indent = 4; // Assume indentation
+            indent_stack.push(indent + 1); // Any increase in indent works
         } else {
             output.push_str(trimmed);
             output.push_str("\n");
         }
     }
 
-    if current_indent > 0 {
+    while indent_stack.len() > 1 {
+        indent_stack.pop();
         output.push_str("}\n");
     }
 

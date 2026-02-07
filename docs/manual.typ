@@ -162,9 +162,18 @@ Las vistas soportadas son:
 
 #table(
   columns: (1fr, 3fr),
-  [`section`], [Vista de sección (corte)],
-  [`long`], [Vista longitudinal],
+  [`section`], [Vista de sección (corte) - _por defecto_],
+  [`longitudinal`], [Vista longitudinal (elevación lateral)],
+  [`both`], [Ambas vistas: corte y longitudinal],
 )
+
+Para especificar la vista en la nueva sintaxis v2:
+```rcs
+section "V-101":
+    shape rect 30 60
+    view both
+    top 3 #6
+```
 
 == Propiedades globales
 Se ubican al inicio del bloque y determina las propiedades que son aplicadas a todas las secciones definidas, si estas no son definidas, se toman los valores por defecto.
@@ -231,6 +240,7 @@ Para la definición de la geometría de una sección (por default en cm), se tie
   [`T ancho_total alto_total espesor_ala espesor_alma `], [Define una sección en T \ _ejemplo: `T 60 60 20 30`_],
   [`L ancho_total alto_total espesor_ala espesor_alma `], [Define una sección en L \ _ejemplo: `L 50 50 15 25`_],
   [`cover valor`], [Valor del recubrimiento \ _ejemplo: `cover 2`_],
+  [`length valor`], [Longitud del tramo (para vista longitudinal) \ _ejemplo: `length 200`_],
 )
 
 == Propiedades para el acero longitudinal
@@ -291,3 +301,5 @@ _Ejemplo: `1@5 4@10 rto@20`_
 #example("../examples/columna.rcs", caption: "Columna")
 
 #example("../examples/circular.rcs", caption: "Muro")
+
+#example("../examples/longitudinal.rcs", caption: "Viga con vista longitudinal", wide: true)

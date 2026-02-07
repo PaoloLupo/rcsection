@@ -1,99 +1,119 @@
 use std::str::FromStr;
-use crate::parser::ast::{Section, SectionType, SectionProperties, Shape, RebarEntry, RebarPattern, StirrupsConfig, Spacing, RawProperty, View};
+use crate::parser::ast::*;
 
 grammar;
 
-pub Sections: Vec<Section> = {
-    <s:Section*> => s
+pub Sections: Vec<AstNode> = {
+    <n:Node*> => n
 };
 
-Section: Section = {
-    <k:SectionType> <id:StringLiteral> ":" "{" <s:Shape> <p:Properties> "}" => {
-        let mut props = p;
-        props.shape = Some(s);
-        Section {
-            kind: k,
-            id: id,
-            properties: props,
-        }
-    }
+Node: AstNode = {
+    "set" ":" "{" <props:GlobalProperty*> "}" => AstNode::Set(SetBlock { properties: props }),
+    "section" <id:StringLiteral> ":" "{" <props:SectionProperties> "}" => AstNode::Section(Section { id, properties: props }),
+    "drawing" <id:StringLiteral> ":" "{" <els:DrawingElement*> "}" => AstNode::Drawing(DrawingBlock { id, elements: els }),
 };
 
-SectionType: SectionType = {
-    "beam" => SectionType::Beam,
-    "column" => SectionType::Column,
-    "wall" => SectionType::Wall,
+GlobalProperty: GlobalProperty = {
+    "unit" <s:StringLiteral> => GlobalProperty::Unit(s),
+    "scale" <n:Num> => GlobalProperty::Scale(n),
+    "scale" <n:Num> ":" <m:Num> => GlobalProperty::Scale(n / m),
+    "stroke" <c:StringLiteral> <w:Num> => GlobalProperty::Stroke(StrokeConfig { color: c, width: w }),
+    "cover" <n:Num> => GlobalProperty::Cover(n),
 };
 
-Properties: SectionProperties = {
-    <props:RawProperty*> => {
+SectionProperties: SectionProperties = {
+    <items:RawSectionItem*> => {
         let mut shape = None;
-        let mut cover = None;
-        let mut span = None;
         let mut concrete = None;
         let mut rebar = Vec::new();
         let mut ties = None;
         let mut view = None;
-        let mut scale_section = None;
-        let mut scale_long = None;
-
-        for p in props {
-            match p {
-                RawProperty::Cover(c) => cover = Some(c),
-                RawProperty::Span(s) => span = Some(s),
-                RawProperty::Concrete(c) => concrete = Some(c),
-                RawProperty::Rebar(r) => rebar.push(r),
-                RawProperty::Ties(t) => ties = Some(t),
-                RawProperty::View(v) => view = Some(v),
-                RawProperty::Scale(s) => {
-                    scale_section = Some(s);
-                    scale_long = Some(s);
-                },
-                RawProperty::ScaleSection(s) => scale_section = Some(s),
-                RawProperty::ScaleLong(s) => scale_long = Some(s),
+        let mut length = None;
+        for item in items {
+            match item {
+                RawSectionItem::Shape(s) => shape = Some(s),
+                RawSectionItem::Concrete(c) => concrete = Some(c),
+                RawSectionItem::RebarList(r) => rebar.extend(r),
+                RawSectionItem::Ties(t) => ties = Some(t),
+                RawSectionItem::View(v) => view = Some(v),
+                RawSectionItem::Length(l) => length = Some(l),
             }
         }
 
-        SectionProperties { shape, cover, span, concrete, rebar, ties, view, scale_section, scale_long }
+        SectionProperties { shape, concrete, rebar, ties, view, length }
     }
 };
 
-RawProperty: RawProperty = {
-    "cover" <n:Num> => RawProperty::Cover(n),
-    "span" <n:Num> => RawProperty::Span(n),
-    "fc" <n:Num> => RawProperty::Concrete(n),
-    <r:RebarEntry> => RawProperty::Rebar(r),
-    "ties" <t:StirrupsConfig> => RawProperty::Ties(t),
-    "view" <v:ViewType> => RawProperty::View(v),
-    "scale" <n:Num> => RawProperty::Scale(n),
-    "scale" <n:Num> ":" <m:Num> => RawProperty::Scale(n / m),
-    "scale" "section" <n:Num> => RawProperty::ScaleSection(n),
-    "scale" "section" <n:Num> ":" <m:Num> => RawProperty::ScaleSection(n / m),
-    "scale" "long" <n:Num> => RawProperty::ScaleLong(n),
-    "scale" "long" <n:Num> ":" <m:Num> => RawProperty::ScaleLong(n / m),
-};
 
-ViewType: View = {
-    "section" => View::Section,
-    "longitudinal" => View::Longitudinal,
-    "both" => View::Both,
-};
 
-Shape: Shape = {
-    <w:Num> "x" <h:Num> => Shape::Rect { width: w, height: h },
-    "D" <d:Num> => Shape::Circle { diameter: d },
-};
-
-StirrupsConfig: StirrupsConfig = {
-    <s:RebarSize> <d:SpacingItem+> => StirrupsConfig { size: s, dist: d }
+RawSectionItem: RawSectionItem = {
+    "shape" <s:Shape> => RawSectionItem::Shape(s),
+    "concrete" ":" "{" <props:ConcreteProperty*> "}" => {
+        let mut fc = None;
+        let mut cover = None;
+        for p in props {
+            match p {
+                ConcreteProp::Fc(f) => fc = Some(f),
+                ConcreteProp::Cover(c) => cover = Some(c),
+            }
+        }
+        RawSectionItem::Concrete(ConcreteProperties { fc, cover })
+    },
+    "rebar" ":" "{" <r:RebarEntry*> "}" => RawSectionItem::RebarList(r),
+    <r:RebarEntry> => RawSectionItem::RebarList(vec![r]),
+    "ties" <t:StirrupsConfig> => RawSectionItem::Ties(t),
+    "view" <v:ViewType> => RawSectionItem::View(v),
+    "length" <l:Num> => RawSectionItem::Length(l),
+    "span" <l:Num> => RawSectionItem::Length(l),
 };
 
 RebarEntry: RebarEntry = {
-    <p:RebarPattern> <c:Num> <s:RebarSize> => RebarEntry {
-        pattern: p,
-        count: c as u32,
-        size: s,
+    <p:RebarPattern> <groups:BarGroup+> <u:Uniform?> => {
+        let pattern = if u.is_some() { RebarPattern::Uniform } else { p };
+        RebarEntry { pattern, bars: groups }
     }
+};
+
+BarGroup: BarGroup = {
+    <c:Num> <s:RebarSize> => BarGroup { count: c as u32, size: s }
+};
+
+Uniform: () = {
+    "uniform" => ()
+};
+
+ConcreteProperty: ConcreteProp = {
+    "fc" <n:Num> => ConcreteProp::Fc(n),
+    "cover" <n:Num> => ConcreteProp::Cover(n),
+};
+
+
+
+DrawingElement: DrawingElement = {
+    <p:Primitive> => DrawingElement::Primitive(p),
+    "view" <name:StringLiteral> ":" "{" <els:DrawingElement*> "}" => DrawingElement::View(ViewBlock { name, elements: els }),
+};
+
+Primitive: Primitive = {
+    "rect" <x:Num> <y:Num> <w:Num> <h:Num> => Primitive::Rect { x, y, width: w, height: h, rounded: None },
+    "circle" <x:Num> <y:Num> <radius:Num> => Primitive::Circle { x, y, radius },
+    "line" "(" <x1:Num> "," <y1:Num> ")" "to" "(" <x2:Num> "," <y2:Num> ")" => Primitive::Line { x1, y1, x2, y2 },
+    "label" <s:StringLiteral> "at" "(" <x:Num> "," <y:Num> ")" => Primitive::Label { text: s, x, y, mode: None },
+    "dim" "(" <x1:Num> "," <y1:Num> ")" "to" "(" <x2:Num> "," <y2:Num> ")" <t:StringLiteral?> => Primitive::Dimension { x1, y1, x2, y2, text: t },
+};
+
+Shape: Shape = {
+    "rect" <w:Num> <h:Num> => Shape::Rect { width: w, height: h },
+    "circle" <d:Num> => Shape::Circle { diameter: d },
+    "polygon" <pts:Points> => Shape::Polygon { points: pts },
+};
+
+Points: Vec<(f64, f64)> = {
+    <p:Point+> => p
+};
+
+Point: (f64, f64) = {
+    "(" <x:Num> "," <y:Num> ")" => (x, y)
 };
 
 RebarPattern: RebarPattern = {
@@ -101,6 +121,19 @@ RebarPattern: RebarPattern = {
     "bot" => RebarPattern::Bottom,
     "sides" => RebarPattern::Sides,
     "perim" => RebarPattern::Perimeter,
+    "grid" <n:Num> => RebarPattern::Grid { spacing: n },
+};
+
+ViewType: View = {
+    "section" => View::Section,
+    "longitudinal" => View::Longitudinal,
+    "both" => View::Both,
+    "top" => View::Top,
+    "elevation" => View::Elevation,
+};
+
+StirrupsConfig: StirrupsConfig = {
+    <s:RebarSize> <d:SpacingItem+> => StirrupsConfig { size: s, dist: d }
 };
 
 SpacingItem: Spacing = {
@@ -108,29 +141,37 @@ SpacingItem: Spacing = {
     "rto" "@" <d:Num> => Spacing::Rest { dist: d },
 };
 
-// Terminals
-
-RebarSize: String = {
-    r"#[0-9]+" => <>.to_string(),
-    r#"[0-9]+/[0-9]+""# => <>.to_string(),
-    r#"[0-9]+""# => <>.to_string(),
-};
-
 StringLiteral: String = {
-    r#""[^"]*""# => <>[1..<>.len()-1].to_string()
+    r#""[^"]*""# => <>[1..<>.len()-1].to_string(),
+    r#"[a-zA-Z][a-zA-Z0-9_\-]*"# => <>.to_string(),
 };
 
 Num: f64 = {
-    r"[0-9]+(\.[0-9]+)?" => f64::from_str(<>).unwrap()
+    NUMBER => <>.parse().unwrap(),
+};
+
+RebarSize: String = {
+    TAGGED_SIZE => <>.to_string(),
+    FRAC_INCH_SIZE => <>.to_string(),
+    FRAC_SIZE => <>.to_string(),
+    INCH_SIZE => <>.to_string(),
+    NUMBER => <>.to_string(),
 };
 
 match {
-    r"\s*" => {}, // Skip whitespace
-    r"//[^\n\r]*[\n\r]*" => {}, // Skip comments
-    "beam", "column", "wall",
-    "cover", "span", "fc", "ties",
-    "top", "bot", "sides", "perim",
-    "rto", "view", "section", "longitudinal", "both",
-    "x", "D", ":", "@", "{", "}",
+    r"\s*" => {},
+    r"//[^\n\r]*[\n\r]*" => {},
+    "set", "section", "drawing", "view", "shape", "concrete", "rebar", "ties",
+    "unit", "scale", "stroke", "font", "cover", "fc",
+    "rect", "circle", "line", "label", "dim", "at", "to", "rounded", "callout", "legend",
+    "top", "bot", "sides", "perim", "grid", "uniform", "polygon",
+    "longitudinal", "both", "elevation",
+    "rto", "D", ":", "@", "{", "}", "(", ")", ",", "pt", "cm", "mm", "/", "\"",
+    
+    r"#[0-9]+" => TAGGED_SIZE,
+    r#"[0-9]+/[0-9]+""# => FRAC_INCH_SIZE,
+    r"[0-9]+/[0-9]+" => FRAC_SIZE,
+    r#"[0-9]+""# => INCH_SIZE,
+    r"[0-9]+(\.[0-9]+)?" => NUMBER,
     _
 }

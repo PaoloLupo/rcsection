@@ -29,20 +29,17 @@ wasm_minimal_protocol::initiate_protocol!();
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
 pub fn priv_parse(expr: &[u8]) -> Result<Vec<u8>, String> {
     let expr: String = ciborium::from_reader(expr).map_err_to_string()?;
-    let sections = parser::parse(&expr).map_err_to_string()?;
-    let expr = cbor_encode(&sections).map_err_to_string()?;
+    let nodes = parser::parse(&expr).map_err_to_string()?;
+    let expr = cbor_encode(&nodes).map_err_to_string()?;
     Ok(expr)
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
 pub fn priv_parse_and_generate(expr: &[u8]) -> Result<Vec<u8>, String> {
     let expr: String = ciborium::from_reader(expr).map_err_to_string()?;
-    let sections = parser::parse(&expr).map_err_to_string()?;
+    let nodes = parser::parse(&expr).map_err_to_string()?;
 
-    let drawings: Vec<geometry::Drawing> = sections
-        .iter()
-        .flat_map(|s| geometry::generate(s))
-        .collect();
+    let drawings = geometry::generate(&nodes);
 
     let expr = cbor_encode(&drawings).map_err_to_string()?;
     Ok(expr)
@@ -51,38 +48,40 @@ pub fn priv_parse_and_generate(expr: &[u8]) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::ast::AstNode;
 
     #[test]
-    fn test_parse_beam() {
+    fn test_parse_section() {
         let input = r#"
-            beam "V-101":
-                30 x 60
-                cover 4
-                fc 210
-                top 2 1/2"
-                bot 3 1"
-                bot 2 3/4"
-                ties 3/8" 1@5 5@10 rto@20
+            section "V-101":
+                shape rect 30 60
+                top 2 #6
+                bot 3 #8
         "#;
         let result = parser::parse(input);
         assert!(result.is_ok());
-        let sections = result.unwrap();
-        assert_eq!(sections.len(), 1);
-        let section = &sections[0];
-        assert_eq!(section.id, "V-101");
+        let nodes = result.unwrap();
+        assert_eq!(nodes.len(), 1);
+        match &nodes[0] {
+            AstNode::Section(section) => {
+                assert_eq!(section.id, "V-101");
+            }
+            _ => panic!("Expected Section node"),
+        }
     }
 
     #[test]
-    fn test_parse_column() {
+    fn test_parse_set_block() {
         let input = r#"
-            column "C-Esq":
-                40 x 40
+            set:
+                unit "cm"
+                scale 1:20
                 cover 4
-                fc 280
-                perim 12 #6
-                ties #3 rto@15
         "#;
         let result = parser::parse(input);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Parse error: {:?}", result.err());
+        let nodes = result.unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert!(matches!(&nodes[0], AstNode::Set(_)));
     }
 }

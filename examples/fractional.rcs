@@ -1,0 +1,6 @@
+section "Fractional":
+    shape rect 30 60
+    concrete:
+        cover 4
+    perim 8 3/4"
+    ties 3/8" 1@5 5@10 rto@20

@@ -1,0 +1,10 @@
+section "V-101":
+    shape rect 30 60
+    view both
+    length 150
+    concrete:
+        fc 210
+        cover 4
+    top 3 #6
+    bot 2 #8
+    ties #3 1@5 5@10 rto@20

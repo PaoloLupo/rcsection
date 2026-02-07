@@ -1,10 +1,11 @@
-use crate::parser::ast::{RebarPattern, Section, Shape, View};
+use crate::parser::ast::{self, View};
 use serde::{Deserialize, Serialize};
-use std::f64::consts::PI;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Drawing {
     pub id: Option<String>,
+    pub view: Option<String>, // "section", "longitudinal", etc.
     pub scale: Option<f64>,
     pub primitives: Vec<Primitive>,
 }
@@ -17,6 +18,7 @@ pub enum Primitive {
         y: f64,
         width: f64,
         height: f64,
+        rounded: Option<f64>,
         stroke: Option<Stroke>,
         fill: Option<String>,
         group: Option<String>,
@@ -27,6 +29,14 @@ pub enum Primitive {
         radius: f64,
         stroke: Option<Stroke>,
         fill: Option<String>,
+        group: Option<String>,
+    },
+    Line {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        stroke: Option<Stroke>,
         group: Option<String>,
     },
     Path {
@@ -40,6 +50,15 @@ pub enum Primitive {
         x: f64,
         y: f64,
         content: String,
+        group: Option<String>,
+    },
+    Dimension {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        text: Option<String>,
+        group: Option<String>,
     },
 }
 
@@ -53,6 +72,7 @@ impl Drawing {
     pub fn new() -> Self {
         Self {
             id: None,
+            view: None,
             scale: None,
             primitives: Vec::new(),
         }
@@ -63,501 +83,633 @@ impl Drawing {
     }
 }
 
-pub fn generate(section: &Section) -> Vec<Drawing> {
+pub fn generate(nodes: &[ast::AstNode]) -> Vec<Drawing> {
     let mut drawings = Vec::new();
-    let props = &section.properties;
+    let mut global_settings = GlobalSettings::default();
 
-    // Determine which views to generate
-    let show_section = match &props.view {
-        Some(View::Section) | Some(View::Both) | None => true,
-        Some(View::Longitudinal) => false,
-    };
-
-    let show_longitudinal = match &props.view {
-        Some(View::Longitudinal) | Some(View::Both) => true,
-        Some(View::Section) => false,
-        None => props.span.is_some(), // Default to showing longitudinal if span is present
-    };
-
-    // --- Cross Section Drawing ---
-    if show_section {
-        let mut section_drawing = Drawing::new();
-        section_drawing.id = Some(format!("{} (Section)", section.id));
-        section_drawing.scale = props.scale_section;
-
-        // Draw Concrete Shape
-        if let Some(shape) = &props.shape {
-            match shape {
-                Shape::Rect { width, height } => {
-                    section_drawing.add(Primitive::Rect {
-                        x: -width / 2.0,
-                        y: -height / 2.0,
-                        width: *width,
-                        height: *height,
-                        stroke: Some(Stroke {
-                            color: "black".to_string(),
-                            width: 1.0,
-                        }),
-                        fill: None,
-                        group: Some("concrete".to_string()),
-                    });
-                }
-                Shape::Circle { diameter } => {
-                    section_drawing.add(Primitive::Circle {
-                        x: 0.0,
-                        y: 0.0,
-                        radius: diameter / 2.0,
-                        stroke: Some(Stroke {
-                            color: "black".to_string(),
-                            width: 1.0,
-                        }),
-                        fill: None,
-                        group: Some("concrete".to_string()),
-                    });
-                }
-            }
-        }
-
-        // Calculate max bar diameter for bending radius
-        let mut max_bar_diam = 0.0;
-        for entry in &props.rebar {
-            let d = parse_size(&entry.size);
-            if d > max_bar_diam {
-                max_bar_diam = d;
-            }
-        }
-        if max_bar_diam == 0.0 {
-            max_bar_diam = 0.95; // Fallback to #3 stirrup size if no rebar
-        }
-
-        // Draw Stirrups (Section View)
-        let cover = props.cover.unwrap_or(4.0);
-        let mut stirrup_size = 0.95; // Default #3
-        if let Some(ties) = &props.ties {
-            stirrup_size = parse_size(&ties.size);
-        }
-
-        let inset = cover + stirrup_size / 2.0;
-
-        if let Some(shape) = &props.shape {
-            match shape {
-                Shape::Rect { width, height } => {
-                    let w = width - 2.0 * inset;
-                    let h = height - 2.0 * inset;
-                    let x = -width / 2.0 + inset;
-                    let y = -height / 2.0 + inset;
-
-                    let inner_r = (2.0 * stirrup_size).max(max_bar_diam / 2.0);
-                    let r = inner_r + stirrup_size / 2.0;
-
-                    // Generate rounded rect path
-                    let mut points = Vec::new();
-
-                    // Start top-left (after corner)
-                    // Top edge
-                    points.push((x + r, y + h));
-                    points.push((x + w - r, y + h));
-
-                    // Top-right corner
-                    add_arc(&mut points, x + w - r, y + h - r, r, PI / 2.0, 0.0);
-
-                    // Right edge
-                    points.push((x + w, y + h - r));
-                    points.push((x + w, y + r));
-
-                    // Bottom-right corner
-                    add_arc(&mut points, x + w - r, y + r, r, 0.0, -PI / 2.0);
-
-                    // Bottom edge
-                    points.push((x + w - r, y));
-                    points.push((x + r, y));
-
-                    // Bottom-left corner
-                    add_arc(&mut points, x + r, y + r, r, -PI / 2.0, -PI);
-
-                    // Left edge
-                    points.push((x, y + r));
-                    points.push((x, y + h - r));
-
-                    // Top-left corner
-                    add_arc(&mut points, x + r, y + h - r, r, PI, PI / 2.0);
-
-                    // Add main stirrup path
-                    section_drawing.add(Primitive::Path {
-                        points: points.clone(),
-                        closed: true,
-                        stroke: Some(Stroke {
-                            color: "#000080".to_string(),
-                            width: 2.0,
-                        }), // Navy
-                        fill: None,
-                        group: Some("stirrup".to_string()),
-                    });
-                }
-                Shape::Circle { diameter } => {
-                    section_drawing.add(Primitive::Circle {
-                        x: 0.0,
-                        y: 0.0,
-                        radius: diameter / 2.0 - inset,
-                        stroke: Some(Stroke {
-                            color: "#000080".to_string(),
-                            width: 2.0,
-                        }),
-                        fill: None,
-                        group: Some("stirrup".to_string()),
-                    });
-                }
-            }
-        }
-
-        // Draw Rebar (Section View)
-        let base_inset = cover + stirrup_size;
-
-        let mut top_entries = Vec::new();
-        let mut bot_entries = Vec::new();
-        let mut other_entries = Vec::new();
-
-        for entry in &props.rebar {
-            match entry.pattern {
-                RebarPattern::Top => top_entries.push(entry),
-                RebarPattern::Bottom => bot_entries.push(entry),
-                _ => other_entries.push(entry),
-            }
-        }
-
-        for (i, entry) in top_entries.iter().enumerate() {
-            let bar_diam = parse_size(&entry.size);
-            let layer_offset = (i as f64) * (bar_diam + 2.5);
-            let vertical_inset = base_inset + bar_diam / 2.0 + layer_offset;
-            let horizontal_inset = base_inset + bar_diam / 2.0;
-            draw_linear_pattern(
-                &mut section_drawing,
-                props.shape.as_ref(),
-                entry,
-                vertical_inset,
-                horizontal_inset,
-                true,
-            );
-        }
-
-        for (i, entry) in bot_entries.iter().rev().enumerate() {
-            let bar_diam = parse_size(&entry.size);
-            let layer_offset = (i as f64) * (bar_diam + 2.5);
-            let vertical_inset = base_inset + bar_diam / 2.0 + layer_offset;
-            let horizontal_inset = base_inset + bar_diam / 2.0;
-            draw_linear_pattern(
-                &mut section_drawing,
-                props.shape.as_ref(),
-                entry,
-                vertical_inset,
-                horizontal_inset,
-                false,
-            );
-        }
-
-        for entry in other_entries {
-            let bar_diam = parse_size(&entry.size);
-            let current_inset = base_inset + bar_diam / 2.0;
-            if let RebarPattern::Perimeter = entry.pattern {
-                if let Some(Shape::Circle { diameter }) = props.shape {
-                    let r = diameter / 2.0 - current_inset;
-                    let step_angle = 2.0 * PI / (entry.count as f64);
-
-                    for i in 0..entry.count {
-                        let angle = (i as f64) * step_angle;
-                        let x = r * angle.cos();
-                        let y = r * angle.sin();
-                        add_rebar_circle(&mut section_drawing, x, y, bar_diam, &entry.size);
-                    }
-                }
-            }
-        }
-
-        drawings.push(section_drawing);
-    }
-
-    // --- Longitudinal Drawing ---
-    if show_longitudinal {
-        if let Some(span) = props.span {
-            let mut long_drawing = Drawing::new();
-            long_drawing.id = Some(format!("{} (Longitudinal)", section.id));
-            long_drawing.id = Some(format!("{} (Longitudinal)", section.id));
-            long_drawing.scale = props.scale_long;
-
-            let height = match &props.shape {
-                Some(Shape::Rect { height, .. }) => *height,
-                Some(Shape::Circle { diameter }) => *diameter,
-                None => 0.0,
-            };
-
-            if height > 0.0 {
-                // Draw Concrete (Longitudinal)
-                long_drawing.add(Primitive::Rect {
-                    x: 0.0,
-                    y: -height / 2.0,
-                    width: span,
-                    height: height,
-                    stroke: Some(Stroke {
-                        color: "black".to_string(),
-                        width: 1.0,
-                    }),
-                    fill: None,
-                    group: Some("concrete".to_string()),
-                });
-
-                let cover = props.cover.unwrap_or(4.0);
-
-                // Draw Hatched Ends (Supports)
-                let support_width = 20.0;
-                add_hatched_rect(
-                    &mut long_drawing,
-                    -support_width,
-                    -height / 2.0,
-                    support_width,
-                    height,
-                );
-                add_hatched_rect(
-                    &mut long_drawing,
-                    span,
-                    -height / 2.0,
-                    support_width,
-                    height,
-                );
-
-                let mut stirrup_size = 0.95; // Default #3
-                if let Some(ties) = &props.ties {
-                    stirrup_size = parse_size(&ties.size);
-                }
-                let base_inset = cover + stirrup_size;
-
-                // Draw Longitudinal Bars (Top)
-                for entry in &props.rebar {
-                    if let RebarPattern::Top = entry.pattern {
-                        let bar_diam = parse_size(&entry.size);
-                        let color = get_color_for_size(&entry.size);
-                        let y = height / 2.0 - base_inset - bar_diam / 2.0;
-
-                        // Draw as filled Rect
-                        long_drawing.add(Primitive::Rect {
-                            x: cover,
-                            y: y - bar_diam / 2.0,
-                            width: span - 2.0 * cover,
-                            height: bar_diam,
-                            stroke: None,
-                            fill: Some(color),
-                            group: Some("rebar_long".to_string()),
-                        });
-                    }
-                }
-
-                // Draw Longitudinal Bars (Bottom)
-                for entry in &props.rebar {
-                    if let RebarPattern::Bottom = entry.pattern {
-                        let bar_diam = parse_size(&entry.size);
-                        let color = get_color_for_size(&entry.size);
-                        let y = -height / 2.0 + base_inset + bar_diam / 2.0;
-
-                        // Draw as filled Rect
-                        long_drawing.add(Primitive::Rect {
-                            x: cover,
-                            y: y - bar_diam / 2.0,
-                            width: span - 2.0 * cover,
-                            height: bar_diam,
-                            stroke: None,
-                            fill: Some(color),
-                            group: Some("rebar_long".to_string()),
-                        });
-                    }
-                }
-
-                // Draw Stirrups
-                if let Some(ties) = &props.ties {
-                    let mut left_x = cover;
-                    let mut right_x = span - cover;
-                    let stirrup_color = get_color_for_size(&ties.size);
-
-                    for spacing in &ties.dist {
-                        match spacing {
-                            crate::parser::ast::Spacing::Fixed { count, dist } => {
-                                for _ in 0..*count {
-                                    left_x += dist;
-                                    if left_x >= right_x {
-                                        break;
-                                    }
-                                    add_stirrup_line(
-                                        &mut long_drawing,
-                                        left_x,
-                                        height,
-                                        cover,
-                                        stirrup_size,
-                                        &stirrup_color,
-                                    );
-
-                                    right_x -= dist;
-                                    if right_x <= left_x {
-                                        break;
-                                    }
-                                    add_stirrup_line(
-                                        &mut long_drawing,
-                                        right_x,
-                                        height,
-                                        cover,
-                                        stirrup_size,
-                                        &stirrup_color,
-                                    );
-                                }
-                            }
-                            crate::parser::ast::Spacing::Rest { dist } => {
-                                let gap = right_x - left_x;
-                                if gap > 0.0 {
-                                    let num_spaces = (gap / dist).ceil() as u32;
-                                    if num_spaces > 0 {
-                                        let actual_dist = gap / (num_spaces as f64);
-                                        for k in 1..num_spaces {
-                                            let pos = left_x + (k as f64) * actual_dist;
-                                            add_stirrup_line(
-                                                &mut long_drawing,
-                                                pos,
-                                                height,
-                                                cover,
-                                                stirrup_size,
-                                                &stirrup_color,
-                                            );
-                                        }
-                                    }
-                                }
-                            }
+    for node in nodes {
+        match node {
+            ast::AstNode::Set(set) => {
+                for prop in &set.properties {
+                    match prop {
+                        ast::GlobalProperty::Scale(s) => global_settings.scale = Some(*s),
+                        ast::GlobalProperty::Cover(c) => global_settings.cover = *c,
+                        ast::GlobalProperty::Stroke(s) => {
+                            global_settings.stroke = Some(Stroke {
+                                color: s.color.clone(),
+                                width: s.width,
+                            })
                         }
+                        _ => {}
                     }
                 }
             }
-            drawings.push(long_drawing);
+            ast::AstNode::Section(section) => {
+                drawings.extend(generate_section(section, &global_settings));
+            }
+            ast::AstNode::Drawing(drawing_block) => {
+                let mut d = Drawing::new();
+                d.id = Some(drawing_block.id.clone());
+                for element in &drawing_block.elements {
+                    process_drawing_element(&mut d, element);
+                }
+                drawings.push(d);
+            }
         }
     }
 
     drawings
 }
 
-fn add_stirrup_line(
-    drawing: &mut Drawing,
-    x: f64,
-    height: f64,
+#[derive(Default)]
+struct GlobalSettings {
+    scale: Option<f64>,
     cover: f64,
-    size: f64,
-    color: &str,
-) {
-    let y_top = height / 2.0 - cover;
-    let y_bot = -height / 2.0 + cover;
-    let h = y_top - y_bot;
-
-    drawing.add(Primitive::Rect {
-        x: x - size / 2.0,
-        y: y_bot,
-        width: size,
-        height: h,
-        stroke: None,
-        fill: Some(color.to_string()),
-        group: Some("stirrup_long".to_string()),
-    });
+    stroke: Option<Stroke>,
 }
 
-fn add_arc(
-    points: &mut Vec<(f64, f64)>,
-    cx: f64,
-    cy: f64,
-    r: f64,
-    start_angle: f64,
-    end_angle: f64,
-) {
-    let steps = 10;
-    for i in 0..=steps {
-        let t = i as f64 / steps as f64;
-        let angle = start_angle + t * (end_angle - start_angle);
-        points.push((cx + r * angle.cos(), cy + r * angle.sin()));
-    }
-}
-
-fn draw_linear_pattern(
-    drawing: &mut Drawing,
-    shape: Option<&Shape>,
-    entry: &crate::parser::ast::RebarEntry,
-    v_inset: f64,
-    h_inset: f64,
-    is_top: bool,
-) {
-    let bar_diam = parse_size(&entry.size);
-    if let Some(Shape::Rect { width, height }) = shape {
-        let y = if is_top {
-            height / 2.0 - v_inset
-        } else {
-            -height / 2.0 + v_inset
-        };
-        let start_x = -width / 2.0 + h_inset;
-        let end_x = width / 2.0 - h_inset;
-        let step = if entry.count > 1 {
-            (end_x - start_x) / (entry.count as f64 - 1.0)
-        } else {
-            0.0
-        };
-
-        for i in 0..entry.count {
-            let x = if entry.count > 1 {
-                start_x + (i as f64) * step
-            } else {
-                0.0
-            };
-            add_rebar_circle(drawing, x, y, bar_diam, &entry.size);
+fn process_drawing_element(drawing: &mut Drawing, element: &ast::DrawingElement) {
+    match element {
+        ast::DrawingElement::Primitive(p) => {
+            drawing.add(map_primitive(p));
+        }
+        ast::DrawingElement::View(view) => {
+            // For now, flatten views into the same drawing or handle as groups
+            for el in &view.elements {
+                process_drawing_element(drawing, el);
+            }
         }
     }
 }
 
-fn add_rebar_circle(drawing: &mut Drawing, x: f64, y: f64, diam: f64, size_str: &str) {
-    let color = get_color_for_size(size_str);
-
-    // Outer circle (Stroke)
-    drawing.add(Primitive::Circle {
-        x,
-        y,
-        radius: diam / 2.0,
-        stroke: Some(Stroke {
-            color: color.clone(),
-            width: 1.0,
-        }),
-        fill: None,
-        group: Some("rebar_outline".to_string()),
-    });
-
-    // Inner circle (Fill) - slightly smaller to leave a gap? Or just fill?
-    // User said: "dos circulos concentricos, el externo que represente el ancho del acero con la corruga y el circulo interior con fill"
-    // Let's make the inner circle 80% of diameter.
-    drawing.add(Primitive::Circle {
-        x,
-        y,
-        radius: diam / 2.0 * 0.8,
-        stroke: None,
-        fill: Some(color),
-        group: Some("rebar_core".to_string()),
-    });
-}
-
-fn get_color_for_size(size: &str) -> String {
-    // Darker colors for legibility
-    match size {
-        "#3" | "3/8\"" => "#CC7000".to_string(), // Dark Orange
-        "#4" | "1/2\"" => "#CC0000".to_string(), // Dark Red
-        "#5" | "5/8\"" => "#800080".to_string(), // Purple
-        "#6" | "3/4\"" => "#000080".to_string(), // Navy Blue
-        "#8" | "1\"" => "#006400".to_string(),   // Dark Green
-        _ => "black".to_string(),
+fn map_primitive(p: &ast::Primitive) -> Primitive {
+    match p {
+        ast::Primitive::Rect {
+            x,
+            y,
+            width,
+            height,
+            rounded,
+        } => Primitive::Rect {
+            x: *x,
+            y: *y,
+            width: *width,
+            height: *height,
+            rounded: *rounded,
+            stroke: Some(Stroke {
+                color: "black".to_string(),
+                width: 1.0,
+            }),
+            fill: None,
+            group: None,
+        },
+        ast::Primitive::Circle { x, y, radius } => Primitive::Circle {
+            x: *x,
+            y: *y,
+            radius: *radius,
+            stroke: Some(Stroke {
+                color: "black".to_string(),
+                width: 1.0,
+            }),
+            fill: None,
+            group: None,
+        },
+        ast::Primitive::Line { x1, y1, x2, y2 } => Primitive::Line {
+            x1: *x1,
+            y1: *y1,
+            x2: *x2,
+            y2: *y2,
+            stroke: Some(Stroke {
+                color: "black".to_string(),
+                width: 1.0,
+            }),
+            group: None,
+        },
+        ast::Primitive::Path { points, closed } => Primitive::Path {
+            points: points.clone(),
+            closed: *closed,
+            stroke: Some(Stroke {
+                color: "black".to_string(),
+                width: 1.0,
+            }),
+            fill: None,
+            group: None,
+        },
+        ast::Primitive::Label { text, x, y, .. } => Primitive::Text {
+            x: *x,
+            y: *y,
+            content: text.clone(),
+            group: None,
+        },
+        ast::Primitive::Dimension {
+            x1,
+            y1,
+            x2,
+            y2,
+            text,
+        } => Primitive::Dimension {
+            x1: *x1,
+            y1: *y1,
+            x2: *x2,
+            y2: *y2,
+            text: text.clone(),
+            group: None,
+        },
     }
 }
 
+fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Drawing> {
+    let mut drawings = Vec::new();
+    let props = &section.properties;
+
+    // Determine which views to generate
+    let show_section = match &props.view {
+        Some(View::Section) | Some(View::Both) | None => true,
+        _ => false,
+    };
+    let show_longitudinal = matches!(&props.view, Some(View::Longitudinal) | Some(View::Both));
+
+    // Get dimensions for both views
+    let (width, height) = match &props.shape {
+        Some(ast::Shape::Rect { width, height }) => (*width, *height),
+        Some(ast::Shape::Circle { diameter }) => (*diameter, *diameter),
+        _ => (30.0, 60.0), // Default beam size
+    };
+
+    let cover = props
+        .concrete
+        .as_ref()
+        .and_then(|c| c.cover)
+        .unwrap_or(settings.cover)
+        .max(2.5);
+
+    // === Section View (Cross-section) ===
+    if show_section {
+        let mut d = Drawing::new();
+        d.id = Some(section.id.clone());
+        d.view = Some("section".to_string());
+        d.scale = settings.scale;
+
+        if let Some(shape) = &props.shape {
+            match shape {
+                ast::Shape::Rect { width, height } => {
+                    d.add(Primitive::Rect {
+                        x: -width / 2.0,
+                        y: -height / 2.0,
+                        width: *width,
+                        height: *height,
+                        rounded: None,
+                        stroke: Some(Stroke {
+                            color: "black".to_string(),
+                            width: 0.08, // 0.8mm in real life
+                        }),
+                        fill: None,
+                        group: Some("concrete".to_string()),
+                    });
+                }
+                ast::Shape::Circle { diameter } => {
+                    d.add(Primitive::Circle {
+                        x: 0.0,
+                        y: 0.0,
+                        radius: diameter / 2.0,
+                        stroke: Some(Stroke {
+                            color: "black".to_string(),
+                            width: 0.08,
+                        }),
+                        fill: None,
+                        group: Some("concrete".to_string()),
+                    });
+                }
+                ast::Shape::Polygon { points } => {
+                    d.add(Primitive::Path {
+                        points: points.clone(),
+                        closed: true,
+                        stroke: Some(Stroke {
+                            color: "black".to_string(),
+                            width: 0.08,
+                        }),
+                        fill: None,
+                        group: Some("concrete".to_string()),
+                    });
+                }
+            }
+        }
+
+        // Add stirrup in section view
+        if let Some(ties) = &props.ties {
+            let tie_color = get_color_for_size(&ties.size);
+            let tie_thickness = parse_size(&ties.size);
+            if let Some(shape) = &props.shape {
+                match shape {
+                    ast::Shape::Rect { width, height } => {
+                        d.add(Primitive::Rect {
+                            x: -width / 2.0 + cover + tie_thickness / 2.0,
+                            y: -height / 2.0 + cover + tie_thickness / 2.0,
+                            width: width - 2.0 * cover - tie_thickness,
+                            height: height - 2.0 * cover - tie_thickness,
+                            rounded: None,
+                            stroke: Some(Stroke {
+                                color: tie_color,
+                                width: tie_thickness, // Provided in CM, draw.typ will scale
+                            }),
+                            fill: None,
+                            group: Some("stirrup".to_string()),
+                        });
+                    }
+                    ast::Shape::Circle { diameter } => {
+                        d.add(Primitive::Circle {
+                            x: 0.0,
+                            y: 0.0,
+                            radius: diameter / 2.0 - cover - tie_thickness / 2.0,
+                            stroke: Some(Stroke {
+                                color: tie_color,
+                                width: tie_thickness,
+                            }),
+                            fill: None,
+                            group: Some("stirrup".to_string()),
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Add rebar circles in section view
+        for rebar in &props.rebar {
+            let stirrup_size = props
+                .ties
+                .as_ref()
+                .map(|t| t.size.clone())
+                .unwrap_or("#3".to_string());
+            let stirrup_radius = parse_size(&stirrup_size) / 2.0;
+
+            let bar_size = rebar
+                .bars
+                .first()
+                .map(|b| b.size.clone())
+                .unwrap_or("#4".to_string());
+            let bar_radius = parse_size(&bar_size) / 2.0;
+            let bar_color = get_color_for_size(&bar_size);
+
+            let steel_offset = cover + 2.0 * stirrup_radius + bar_radius;
+
+            let positions = match rebar.pattern {
+                ast::RebarPattern::Top => {
+                    let count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
+                    distribute_bars_horizontal(
+                        count,
+                        width - 2.0 * steel_offset,
+                        height / 2.0 - steel_offset,
+                    )
+                }
+                ast::RebarPattern::Bottom => {
+                    let count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
+                    distribute_bars_horizontal(
+                        count,
+                        width - 2.0 * steel_offset,
+                        -height / 2.0 + steel_offset,
+                    )
+                }
+                ast::RebarPattern::Sides => {
+                    let count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
+                    distribute_bars_sides(
+                        count,
+                        height - 2.0 * steel_offset,
+                        width / 2.0 - steel_offset,
+                    )
+                }
+                ast::RebarPattern::Perimeter => {
+                    let count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
+                    if let Some(ast::Shape::Circle { diameter }) = &props.shape {
+                        distribute_bars_circle(count, diameter / 2.0 - steel_offset)
+                    } else {
+                        distribute_bars_perim(
+                            count,
+                            width - 2.0 * steel_offset,
+                            height - 2.0 * steel_offset,
+                        )
+                    }
+                }
+                _ => vec![],
+            };
+
+            for (x, y) in positions {
+                d.add(Primitive::Circle {
+                    x,
+                    y,
+                    radius: bar_radius,
+                    stroke: Some(Stroke {
+                        color: bar_color.clone(),
+                        width: 0.05,
+                    }),
+                    fill: Some(bar_color.clone()),
+                    group: Some("rebar".to_string()),
+                });
+            }
+        }
+
+        drawings.push(d);
+    }
+
+    // === Longitudinal View (Side elevation) ===
+    if show_longitudinal {
+        let mut d = Drawing::new();
+        d.id = Some(format!("{} (Long.)", section.id));
+        d.view = Some("longitudinal".to_string());
+        d.scale = settings.scale;
+
+        // Assume a standard span length (can be parameterized later)
+        let span = props.length.unwrap_or(200.0); // 2 meters default to fit A4 better
+
+        // Concrete outline (side view)
+        d.add(Primitive::Rect {
+            x: 0.0,
+            y: -height / 2.0,
+            width: span,
+            height: height,
+            rounded: None,
+            stroke: Some(Stroke {
+                color: "black".to_string(),
+                width: 1.0,
+            }),
+            fill: None,
+            group: Some("concrete".to_string()),
+        });
+
+        // Draw longitudinal bars as lines
+        for rebar in &props.rebar {
+            let stirrup_size = props
+                .ties
+                .as_ref()
+                .map(|t| t.size.clone())
+                .unwrap_or("#3".to_string());
+            let stirrup_thickness = parse_size(&stirrup_size);
+
+            let bar_size = rebar
+                .bars
+                .first()
+                .map(|b| b.size.clone())
+                .unwrap_or("#4".to_string());
+            let bar_thickness = parse_size(&bar_size);
+            let bar_color = get_color_for_size(&bar_size);
+
+            // Same offset as in section view
+            let steel_offset = cover + stirrup_thickness + bar_thickness / 2.0;
+
+            let y_pos = match rebar.pattern {
+                ast::RebarPattern::Top => height / 2.0 - steel_offset,
+                ast::RebarPattern::Bottom => -height / 2.0 + steel_offset,
+                _ => 0.0,
+            };
+
+            // Main longitudinal bar line
+            d.add(Primitive::Path {
+                points: vec![(cover, y_pos), (span - cover, y_pos)],
+                closed: false,
+                stroke: Some(Stroke {
+                    color: bar_color.clone(),
+                    width: bar_thickness,
+                }),
+                fill: None,
+                group: Some("rebar".to_string()),
+            });
+        }
+
+        // Draw stirrups as vertical lines (Symmetric Distribution)
+        if let Some(ties) = &props.ties {
+            let tie_color = get_color_for_size(&ties.size);
+            let tie_thickness = parse_size(&ties.size);
+
+            // Vertical range matching the section view stirrup cage
+            let y_min = -height / 2.0 + cover + tie_thickness / 2.0;
+            let y_max = height / 2.0 - cover - tie_thickness / 2.0;
+
+            let mut positions: BTreeSet<String> = BTreeSet::new();
+
+            // Calculate positions from Start to Middle
+            let mut x_start = cover;
+            for spacing in &ties.dist {
+                if let ast::Spacing::Fixed { count, dist } = spacing {
+                    for _ in 0..*count {
+                        x_start += dist;
+                        if x_start < span / 2.0 {
+                            positions.insert(format!("{:.4}", x_start));
+                        }
+                    }
+                }
+            }
+
+            // Calculate positions from End to Middle (Mirrored)
+            let mut x_end = span - cover;
+            for spacing in &ties.dist {
+                if let ast::Spacing::Fixed { count, dist } = spacing {
+                    for _ in 0..*count {
+                        x_end -= dist;
+                        if x_end > span / 2.0 {
+                            positions.insert(format!("{:.4}", x_end));
+                        }
+                    }
+                }
+            }
+
+            // Fill the middle with Rest spacing
+            let rest_dist = ties
+                .dist
+                .iter()
+                .find_map(|s| {
+                    if let ast::Spacing::Rest { dist } = s {
+                        Some(*dist)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(20.0);
+
+            // Find the boundaries of the middle zone
+            let mut left_bound = cover;
+            for spacing in &ties.dist {
+                if let ast::Spacing::Fixed { count, dist } = spacing {
+                    left_bound += *count as f64 * dist;
+                } else {
+                    break;
+                }
+            }
+
+            let mut right_bound = span - cover;
+            for spacing in &ties.dist {
+                if let ast::Spacing::Fixed { count, dist } = spacing {
+                    right_bound -= *count as f64 * dist;
+                } else {
+                    break;
+                }
+            }
+
+            if left_bound < right_bound {
+                let middle_len = right_bound - left_bound;
+                let count = (middle_len / rest_dist).floor() as i32;
+                if count > 0 {
+                    let actual_middle_dist = middle_len / (count + 1) as f64;
+                    for i in 1..=count {
+                        let x = left_bound + i as f64 * actual_middle_dist;
+                        positions.insert(format!("{:.4}", x));
+                    }
+                } else {
+                    // Just one in the middle if it fits
+                    let mid_x = (left_bound + right_bound) / 2.0;
+                    positions.insert(format!("{:.4}", mid_x));
+                }
+            }
+
+            // Add the stirrup primitives
+            for x_str in positions {
+                let x: f64 = x_str.parse().unwrap();
+                d.add(Primitive::Path {
+                    points: vec![(x, y_min), (x, y_max)],
+                    closed: false,
+                    stroke: Some(Stroke {
+                        color: tie_color.clone(),
+                        width: tie_thickness,
+                    }),
+                    fill: None,
+                    group: Some("stirrup".to_string()),
+                });
+            }
+        }
+
+        drawings.push(d);
+    }
+
+    drawings
+}
+
+/// Distribute bars horizontally across a width at a given y position
+fn distribute_bars_horizontal(count: usize, available_width: f64, y: f64) -> Vec<(f64, f64)> {
+    if count == 0 {
+        return vec![];
+    }
+    if count == 1 {
+        return vec![(0.0, y)];
+    }
+
+    let spacing = available_width / (count - 1) as f64;
+    let start_x = -available_width / 2.0;
+
+    (0..count)
+        .map(|i| (start_x + i as f64 * spacing, y))
+        .collect()
+}
+
+fn distribute_bars_sides(count: usize, available_height: f64, x: f64) -> Vec<(f64, f64)> {
+    if count == 0 {
+        return vec![];
+    }
+    let per_side = (count + 1) / 2;
+    let mut pos = Vec::new();
+
+    if per_side > 0 {
+        let spacing = if per_side > 1 {
+            available_height / (per_side - 1) as f64
+        } else {
+            0.0
+        };
+        let start_y = -available_height / 2.0;
+
+        for i in 0..per_side {
+            let y = start_y + i as f64 * spacing;
+            pos.push((x, y));
+            if pos.len() < count {
+                pos.push((-x, y));
+            }
+        }
+    }
+    pos
+}
+
+fn distribute_bars_perim(count: usize, w: f64, h: f64) -> Vec<(f64, f64)> {
+    if count == 0 {
+        return vec![];
+    }
+    if count == 1 {
+        return vec![(0.0, 0.0)];
+    }
+
+    let mut pos = Vec::new();
+    // Corners first
+    pos.push((-w / 2.0, -h / 2.0));
+    pos.push((w / 2.0, -h / 2.0));
+    pos.push((w / 2.0, h / 2.0));
+    pos.push((-w / 2.0, h / 2.0));
+
+    if count <= 4 {
+        return pos.into_iter().take(count).collect();
+    }
+
+    // Remaining intermediate bars
+    let remaining = count - 4;
+    let pairs = remaining / 2;
+    let loose = remaining % 2;
+
+    // Distribute pairs proportionally to face lengths
+    let h_pairs = ((pairs as f64 * w) / (w + h)).round() as usize;
+    let v_pairs = pairs - h_pairs;
+
+    let n_bottom = h_pairs + loose;
+    let n_top = h_pairs;
+    let n_right = v_pairs;
+    let n_left = v_pairs;
+
+    // Bottom
+    if n_bottom > 0 {
+        let s = w / (n_bottom + 1) as f64;
+        for i in 1..=n_bottom {
+            pos.push((-w / 2.0 + i as f64 * s, -h / 2.0));
+        }
+    }
+    // Top
+    if n_top > 0 {
+        let s = w / (n_top + 1) as f64;
+        for i in 1..=n_top {
+            pos.push((-w / 2.0 + i as f64 * s, h / 2.0));
+        }
+    }
+    // Right
+    if n_right > 0 {
+        let s = h / (n_right + 1) as f64;
+        for i in 1..=n_right {
+            pos.push((w / 2.0, -h / 2.0 + i as f64 * s));
+        }
+    }
+    // Left
+    if n_left > 0 {
+        let s = h / (n_left + 1) as f64;
+        for i in 1..=n_left {
+            pos.push((-w / 2.0, -h / 2.0 + i as f64 * s));
+        }
+    }
+
+    pos
+}
+
+fn distribute_bars_circle(count: usize, radius: f64) -> Vec<(f64, f64)> {
+    if count == 0 {
+        return vec![];
+    }
+    let mut pos = Vec::new();
+    let angle_step = 2.0 * std::f64::consts::PI / count as f64;
+    for i in 0..count {
+        let angle = i as f64 * angle_step;
+        pos.push((radius * angle.cos(), radius * angle.sin()));
+    }
+    pos
+}
+
+#[allow(dead_code)]
 fn parse_size(size_str: &str) -> f64 {
     if size_str.starts_with("#") {
         if let Ok(num) = size_str[1..].parse::<f64>() {
             return num * 0.3175; // 1/8 inch in cm
         }
-    } else if size_str.ends_with("\"") {
+    } else {
         let content = size_str.trim_end_matches("\"");
         if content.contains('/') {
             let parts: Vec<&str> = content.split('/').collect();
@@ -566,111 +718,37 @@ fn parse_size(size_str: &str) -> f64 {
                     return (num / den) * 2.54;
                 }
             }
-        } else {
-            if let Ok(num) = content.parse::<f64>() {
-                return num * 2.54;
-            }
+        } else if let Ok(num) = content.parse::<f64>() {
+            // Assume inches if no specific unit but parsed as number
+            return num * 2.54;
         }
     }
     1.27 // Default
 }
 
-fn add_hatched_rect(drawing: &mut Drawing, x: f64, y: f64, width: f64, height: f64) {
-    // Draw Rect Outline
-    drawing.add(Primitive::Rect {
-        x,
-        y,
-        width,
-        height,
-        stroke: Some(Stroke {
-            color: "black".to_string(),
-            width: 1.0,
-        }),
-        fill: None,
-        group: Some("support".to_string()),
-    });
-
-    // Draw Hatching (Diagonal Lines)
-    let spacing = 5.0;
-    let num_lines = ((width + height) / spacing) as i32;
-
-    for i in 0..num_lines {
-        let offset = (i as f64) * spacing;
-        // Line equation: Y = X - offset (relative to rect origin)
-        // We want to clip this line to the rectangle [x, x+width] x [y, y+height]
-        // In local coords (0,0) to (width, height):
-        // line is y_local = x_local - C, where C varies.
-        // Actually, simpler: iterate diagonals.
-        // Start point candidates: (x + offset, y) or (x, y + offset)
-
-        // Let's just draw simple 45 degree lines.
-        // P1 = (x + offset, y), P2 = (x + offset - height, y + height)
-        // We need to clamp to the box.
-
-        // Simplified approach: iterate x from x to x+width+height with step.
-        // Draw line from (current_x, y) to (current_x - height, y + height)
-        // Clamp to x_min=x, x_max=x+width.
-
-        // Even simpler: just draw lines and let the renderer handle clipping? No, renderer doesn't clip.
-        // We must calculate intersection.
-
-        // Let's try a different hatch: ZigZag lines at the interface?
-        // User said "achurados" which means hatched.
-        // Let's implement a simple hatch.
-
-        let x1 = x + offset;
-        let y1 = y;
-        let x2 = x + offset - height; // 45 degrees backwards
-        let y2 = y + height;
-
-        // We have a line segment from (x1, y1) to (x2, y2).
-        // We need to clip it to the rectangle [x, x+width] x [y, y+height].
-        // y range is already [y, y+height].
-        // We just need to clip x range to [x, x+width].
-
-        // This is tricky because x varies with y.
-        // Let's use a simpler hatch: vertical lines? No, "achurado" usually implies diagonal.
-
-        // Let's try drawing lines from bottom edge to top edge.
-        // x_bottom = x + offset
-        // x_top = x + offset + height (forward slash /)
-        // Clip x_bottom and x_top? No.
-
-        // Correct logic for 45 deg lines in rect (0,0,w,h):
-        // Line: y = x - c  => c = x - y.
-        // Intersects:
-        // Bottom (y=0): x = c
-        // Top (y=h): x = c + h
-        // Left (x=0): y = -c
-        // Right (x=w): y = w - c
-
-        // We iterate c from -h to w.
-        // For each c:
-        // P1 (enter): max(0, c) -> y = max(0, c) - c = 0 if c>0 else -c
-        // P2 (exit): min(w, c+h) -> y = min(w, c+h) - c
-
-        let c = (i as f64) * spacing - height;
-        if c > width {
-            break;
-        }
-
-        let x_start = c.max(0.0);
-        let x_end = (c + height).min(width);
-
-        if x_start < x_end {
-            let y_start = x_start - c;
-            let y_end = x_end - c;
-
-            drawing.add(Primitive::Path {
-                points: vec![(x + x_start, y + y_start), (x + x_end, y + y_end)],
-                closed: false,
-                stroke: Some(Stroke {
-                    color: "black".to_string(),
-                    width: 0.5,
-                }),
-                fill: None,
-                group: Some("hatch".to_string()),
-            });
+#[allow(dead_code)]
+fn get_color_for_size(size: &str) -> String {
+    let s = size.trim_end_matches("\"");
+    match s {
+        "#3" | "3/8" => "#CC7000".to_string(), // Dark Orange
+        "#4" | "1/2" => "#CC0000".to_string(), // Dark Red
+        "#5" | "5/8" => "#800080".to_string(), // Purple
+        "#6" | "3/4" => "#000080".to_string(), // Navy Blue
+        "#8" | "1" => "#006400".to_string(),   // Dark Green
+        _ => {
+            // Check original for #
+            if size.starts_with("#") {
+                match size {
+                    "#3" => "#CC7000".to_string(),
+                    "#4" => "#CC0000".to_string(),
+                    "#5" => "#800080".to_string(),
+                    "#6" => "#000080".to_string(),
+                    "#8" => "#006400".to_string(),
+                    _ => "black".to_string(),
+                }
+            } else {
+                "black".to_string()
+            }
         }
     }
 }

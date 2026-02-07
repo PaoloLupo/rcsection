@@ -6,15 +6,22 @@
   } else if c == "orange" { orange } else if c == "purple" { purple } else if c == "green" { green } else { black }
 }
 
-#let draw(drawings, scale: 0.1, show_label: true) = {
+#let draw(drawings, scale: 0.1, show_label: true, view: none) = {
+  // Filter by view if specified
+  let filtered = if view != none {
+    drawings.filter(d => d.view == view or d.view == none or view == "all")
+  } else {
+    drawings
+  }
+
   // Table Layout for multiple sections
-  if drawings.len() > 0 {
+  if filtered.len() > 0 {
     let cells = ()
 
     // Title Row
     // cells.push(table.cell(colspan: drawings.len(), align: center)[*Sections*])
 
-    for drawing in drawings {
+    for drawing in filtered {
       // Title
       if show_label and drawing.id != none {
         cells.push(align(center)[*#drawing.id*])
@@ -25,8 +32,9 @@
       cells.push(cetz.canvas(length: s * 1cm, {
         for primitive in drawing.primitives {
           if primitive.type == "Rect" {
+            let s_val = primitive.stroke.width * s * 28.346
             let stroke = if primitive.stroke != none {
-              (paint: parse-color(primitive.stroke.color), thickness: primitive.stroke.width * 1pt)
+              (paint: parse-color(primitive.stroke.color), thickness: s_val * 1pt)
             } else {
               none
             }
@@ -40,8 +48,9 @@
               name: primitive.group,
             )
           } else if primitive.type == "Circle" {
+            let s_val = primitive.stroke.width * s * 28.346
             let stroke = if primitive.stroke != none {
-              (paint: parse-color(primitive.stroke.color), thickness: primitive.stroke.width * 1pt)
+              (paint: parse-color(primitive.stroke.color), thickness: s_val * 1pt)
             } else {
               none
             }
@@ -55,8 +64,9 @@
               name: primitive.group,
             )
           } else if primitive.type == "Path" {
+            let s_val = primitive.stroke.width * s * 28.346
             let stroke = if primitive.stroke != none {
-              (paint: parse-color(primitive.stroke.color), thickness: primitive.stroke.width * 1pt)
+              (paint: parse-color(primitive.stroke.color), thickness: s_val * 1pt)
             } else {
               none
             }
