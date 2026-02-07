@@ -44,6 +44,12 @@
 
 /// Legacy: Auto-render RCS blocks (no caching)
 #let init_rcsection(body, ..options) = {
-  show raw.where(lang: "rcs"): it => draw(parse(it.text))
-  body
+  context {
+    let font = text.font
+    show raw.where(lang: "rcs"): it => {
+      set text(font: font)
+      draw(parse(it.text))
+    }
+    body
+  }
 }
