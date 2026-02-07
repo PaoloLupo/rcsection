@@ -81,6 +81,73 @@
             )
           } else if primitive.type == "Text" {
             cetz.draw.content((primitive.x, primitive.y), [*#primitive.content*])
+          } else if primitive.type == "LeaderLine" {
+            // Leader line with arrow for rebar callouts
+            let start = primitive.start
+            let end = primitive.end
+
+            // Draw line with arrow at start
+            cetz.draw.line(
+              start,
+              end,
+              stroke: (paint: black, thickness: 0.3pt),
+              mark: (start: ">", fill: black, scale: 0.3),
+            )
+
+            // Text anchor based on side
+            let anchor = if primitive.side == "top" or primitive.side == "top-right" {
+              "south-west"
+            } else if primitive.side == "bottom" {
+              "north-west"
+            } else if primitive.side == "right" {
+              "west"
+            } else {
+              "west"
+            }
+
+            // Callout text
+            cetz.draw.content(end, anchor: anchor, padding: 0.1, [#primitive.text])
+          } else if primitive.type == "Dimension" {
+            // Dimension line with arrows and text
+            let x1 = primitive.x1
+            let y1 = primitive.y1
+            let x2 = primitive.x2
+            let y2 = primitive.y2
+
+            // Determine if horizontal or vertical
+            let is_horizontal = calc.abs(y2 - y1) < 0.01
+
+            // Draw dimension line with arrows at both ends
+            cetz.draw.line(
+              (x1, y1),
+              (x2, y2),
+              stroke: (paint: black, thickness: 0.3pt),
+              mark: (start: "<", end: ">", fill: black, scale: 0.3),
+            )
+
+            // Extension lines - from section edge (with gap) to past dimension line
+            let gap = 1.0 // Gap between section edge and extension line
+            let beyond = 2.0 // How far past the dimension line
+            if is_horizontal {
+              // Bottom: vertical extension lines
+              let section_y = y1 + 8.0 // Section edge (8 units offset)
+              cetz.draw.line((x1, section_y - gap), (x1, y1 - beyond), stroke: 0.2pt)
+              cetz.draw.line((x2, section_y - gap), (x2, y2 - beyond), stroke: 0.2pt)
+            } else {
+              // Left: horizontal extension lines
+              let section_x = x1 + 8.0 // Section edge (8 units offset)
+              cetz.draw.line((section_x - gap, y1), (x1 - beyond, y1), stroke: 0.2pt)
+              cetz.draw.line((section_x - gap, y2), (x2 - beyond, y2), stroke: 0.2pt)
+            }
+
+            // Centered text
+            let mid_x = (x1 + x2) / 2
+            let mid_y = (y1 + y2) / 2
+            let txt = if primitive.text != none { primitive.text } else { "" }
+            if txt != "" {
+              let anchor = if is_horizontal { "south" } else { "east" }
+              cetz.draw.content((mid_x, mid_y), anchor: anchor, padding: 0.15, [#txt])
+            }
           }
         }
       }))

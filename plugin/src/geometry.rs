@@ -60,6 +60,18 @@ pub enum Primitive {
         text: Option<String>,
         group: Option<String>,
     },
+    /// Leader line with arrow for rebar callouts (ACI style)
+    LeaderLine {
+        /// Start point (near the rebar group)
+        start: (f64, f64),
+        /// End point (where text is placed)
+        end: (f64, f64),
+        /// Annotation text (e.g., "3#6" or "2 3/8\"")
+        text: String,
+        /// Which side the callout points to (for text anchor)
+        side: String,
+        group: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -343,48 +355,40 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                 .unwrap_or("#3".to_string());
             let stirrup_radius = parse_size(&stirrup_size) / 2.0;
 
-            let bar_size = rebar
+            // Use the largest bar size for offset calculation
+            let max_bar_radius = rebar
                 .bars
-                .first()
-                .map(|b| b.size.clone())
-                .unwrap_or("#4".to_string());
-            let bar_radius = parse_size(&bar_size) / 2.0;
-            let bar_color = get_color_for_size(&bar_size);
+                .iter()
+                .map(|b| parse_size(&b.size) / 2.0)
+                .fold(0.0_f64, |a, b| a.max(b));
 
-            let steel_offset = cover + 2.0 * stirrup_radius + bar_radius;
+            let steel_offset = cover + 2.0 * stirrup_radius + max_bar_radius;
+
+            // Generate positions for ALL bars, then assign sizes
+            let total_count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
 
             let positions = match rebar.pattern {
-                ast::RebarPattern::Top => {
-                    let count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
-                    distribute_bars_horizontal(
-                        count,
-                        width - 2.0 * steel_offset,
-                        height / 2.0 - steel_offset,
-                    )
-                }
-                ast::RebarPattern::Bottom => {
-                    let count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
-                    distribute_bars_horizontal(
-                        count,
-                        width - 2.0 * steel_offset,
-                        -height / 2.0 + steel_offset,
-                    )
-                }
-                ast::RebarPattern::Sides => {
-                    let count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
-                    distribute_bars_sides(
-                        count,
-                        height - 2.0 * steel_offset,
-                        width / 2.0 - steel_offset,
-                    )
-                }
+                ast::RebarPattern::Top => distribute_bars_horizontal(
+                    total_count,
+                    width - 2.0 * steel_offset,
+                    height / 2.0 - steel_offset,
+                ),
+                ast::RebarPattern::Bottom => distribute_bars_horizontal(
+                    total_count,
+                    width - 2.0 * steel_offset,
+                    -height / 2.0 + steel_offset,
+                ),
+                ast::RebarPattern::Sides => distribute_bars_sides(
+                    total_count,
+                    height - 2.0 * steel_offset,
+                    width / 2.0 - steel_offset,
+                ),
                 ast::RebarPattern::Perimeter => {
-                    let count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
                     if let Some(ast::Shape::Circle { diameter }) = &props.shape {
-                        distribute_bars_circle(count, diameter / 2.0 - steel_offset)
+                        distribute_bars_circle(total_count, diameter / 2.0 - steel_offset)
                     } else {
                         distribute_bars_perim(
-                            count,
+                            total_count,
                             width - 2.0 * steel_offset,
                             height - 2.0 * steel_offset,
                         )
@@ -393,19 +397,133 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                 _ => vec![],
             };
 
-            for (x, y) in positions {
+            // Expand bar groups to match positions: [(size, color), ...]
+            let bar_specs: Vec<_> = rebar
+                .bars
+                .iter()
+                .flat_map(|b| {
+                    let radius = parse_size(&b.size) / 2.0;
+                    let color = get_color_for_size(&b.size);
+                    std::iter::repeat((radius, color)).take(b.count as usize)
+                })
+                .collect();
+
+            // Draw each bar with its correct size and color
+            for (i, (x, y)) in positions.iter().enumerate() {
+                let (radius, color) = bar_specs
+                    .get(i)
+                    .cloned()
+                    .unwrap_or((max_bar_radius, "black".to_string()));
+
                 d.add(Primitive::Circle {
-                    x,
-                    y,
-                    radius: bar_radius,
+                    x: *x,
+                    y: *y,
+                    radius,
                     stroke: Some(Stroke {
-                        color: bar_color.clone(),
+                        color: color.clone(),
                         width: 0.05,
                     }),
-                    fill: Some(bar_color.clone()),
+                    fill: Some(color),
                     group: Some("rebar".to_string()),
                 });
             }
+
+            // Generate callout for this rebar group
+            if !positions.is_empty() {
+                // Pick the best bar position for the arrow origin based on pattern
+                let (arrow_origin, side) = match rebar.pattern {
+                    ast::RebarPattern::Top => {
+                        // Use rightmost bar for top callout
+                        let pos = positions
+                            .iter()
+                            .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+                            .unwrap();
+                        (*pos, "top")
+                    }
+                    ast::RebarPattern::Bottom => {
+                        // Use rightmost bar for bottom callout
+                        let pos = positions
+                            .iter()
+                            .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+                            .unwrap();
+                        (*pos, "bottom")
+                    }
+                    ast::RebarPattern::Sides => {
+                        // Use topmost bar on right side
+                        let pos = positions
+                            .iter()
+                            .filter(|(x, _)| *x > 0.0)
+                            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                            .unwrap_or(positions.first().unwrap());
+                        (*pos, "right")
+                    }
+                    ast::RebarPattern::Perimeter => {
+                        // Use top-right corner bar
+                        let pos = positions
+                            .iter()
+                            .max_by(|a, b| (a.0 + a.1).partial_cmp(&(b.0 + b.1)).unwrap())
+                            .unwrap();
+                        (*pos, "top-right")
+                    }
+                    _ => (*positions.first().unwrap(), "right"),
+                };
+
+                // Format text: preserve original size notation
+                let callout_text = format_rebar_callout(&rebar.bars);
+
+                // Calculate end point - use absolute offsets to ensure arrow extends outside section
+                let (offset_x, offset_y) = match rebar.pattern {
+                    ast::RebarPattern::Top => {
+                        (10.0_f64.max(width * 0.15), 8.0_f64.max(height * 0.1))
+                    }
+                    ast::RebarPattern::Bottom => {
+                        (10.0_f64.max(width * 0.15), -8.0_f64.min(-height * 0.1))
+                    }
+                    ast::RebarPattern::Sides => {
+                        (10.0_f64.max(width * 0.15), 5.0_f64.max(height * 0.05))
+                    }
+                    ast::RebarPattern::Perimeter => {
+                        (10.0_f64.max(width * 0.15), 8.0_f64.max(height * 0.1))
+                    }
+                    _ => (10.0, 0.0),
+                };
+
+                let end_x = arrow_origin.0 + offset_x;
+                let end_y = arrow_origin.1 + offset_y;
+
+                d.add(Primitive::LeaderLine {
+                    start: (arrow_origin.0, arrow_origin.1),
+                    end: (end_x, end_y),
+                    text: callout_text,
+                    side: side.to_string(),
+                    group: Some("callout".to_string()),
+                });
+            }
+        }
+
+        // Add section dimensions (width at bottom, height at left) - ONLY FOR RECT SHAPES
+        if let Some(ast::Shape::Rect { .. }) = &props.shape {
+            let dim_offset = 8.0; // Distance from section edge to dimension line
+
+            // Width dimension (bottom)
+            d.add(Primitive::Dimension {
+                x1: -width / 2.0,
+                y1: -height / 2.0 - dim_offset,
+                x2: width / 2.0,
+                y2: -height / 2.0 - dim_offset,
+                text: Some(format!("{:.0}", width)),
+                group: Some("dimension".to_string()),
+            });
+
+            // Height dimension (left)
+            d.add(Primitive::Dimension {
+                x1: -width / 2.0 - dim_offset,
+                y1: -height / 2.0,
+                x2: -width / 2.0 - dim_offset,
+                y2: height / 2.0,
+                text: Some(format!("{:.0}", height)),
+                group: Some("dimension".to_string()),
+            });
         }
 
         drawings.push(d);
@@ -472,6 +590,22 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                 }),
                 fill: None,
                 group: Some("rebar".to_string()),
+            });
+
+            // Add callout at right end of bar
+            let callout_text = format_rebar_callout(&rebar.bars);
+            let (offset_y, side) = match rebar.pattern {
+                ast::RebarPattern::Top => (height * 0.15, "top"),
+                ast::RebarPattern::Bottom => (-height * 0.15, "bottom"),
+                _ => (0.0, "right"),
+            };
+
+            d.add(Primitive::LeaderLine {
+                start: (span - cover, y_pos),
+                end: (span + 10.0, y_pos + offset_y),
+                text: callout_text,
+                side: side.to_string(),
+                group: Some("callout".to_string()),
             });
         }
 
@@ -751,4 +885,31 @@ fn get_color_for_size(size: &str) -> String {
             }
         }
     }
+}
+
+/// Format rebar callout text, grouping by size and preserving original notation.
+/// Examples: "3#6", "2Ø3/8\"", "2#8+1Ø3/8\""
+fn format_rebar_callout(bars: &[ast::BarGroup]) -> String {
+    use std::collections::BTreeMap;
+
+    // Group bars by size, summing counts
+    let mut grouped: BTreeMap<&str, u32> = BTreeMap::new();
+    for bar in bars {
+        *grouped.entry(&bar.size).or_insert(0) += bar.count;
+    }
+
+    // Format each group
+    grouped
+        .iter()
+        .map(|(size, count)| {
+            if size.starts_with("#") {
+                // Compact format for # notation: "3#6"
+                format!("{}{}", count, size)
+            } else {
+                // Fractional format with Ø: "2Ø3/8\""
+                format!("{}Ø{}", count, size)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("+")
 }
