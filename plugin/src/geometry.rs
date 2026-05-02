@@ -258,13 +258,13 @@ fn rebar_line_stroke(settings: &GlobalSettings, bar_color: String, width: f64) -
     match settings.style {
         StylePreset::Spd => Stroke {
             color: "black".to_string(),
-            width: 0.12,
+            width,
         },
         StylePreset::Default => {
             if settings.monochrome {
                 Stroke {
                     color: "black".to_string(),
-                    width: 0.08,
+                    width,
                 }
             } else {
                 Stroke {
@@ -803,9 +803,13 @@ fn generate_longitudinal_drawing(
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
             let hook = tie_thickness * 2.0; // 90-degree hook length
-            let stirrup_stroke = Stroke {
-                color: tie_color.clone(),
-                width: tie_thickness,
+            let stirrup_stroke = if settings.style == StylePreset::Spd {
+                stirrup_outline_stroke(settings, tie_color.clone())
+            } else {
+                Stroke {
+                    color: tie_color.clone(),
+                    width: tie_thickness,
+                }
             };
             for y in positions {
                 d.add(Primitive::Path {
@@ -895,9 +899,13 @@ fn generate_longitudinal_drawing(
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
             let hook = tie_thickness * 2.0; // 90-degree hook length
-            let stirrup_stroke = Stroke {
-                color: tie_color.clone(),
-                width: tie_thickness,
+            let stirrup_stroke = if settings.style == StylePreset::Spd {
+                stirrup_outline_stroke(settings, tie_color.clone())
+            } else {
+                Stroke {
+                    color: tie_color.clone(),
+                    width: tie_thickness,
+                }
             };
             for x in positions {
                 d.add(Primitive::Path {
