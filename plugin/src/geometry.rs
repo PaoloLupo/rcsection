@@ -183,7 +183,7 @@ fn concrete_stroke(settings: &GlobalSettings) -> Stroke {
     match settings.style {
         StylePreset::Spd => Stroke {
             color: "black".to_string(),
-            width: 0.12,
+            width: 0.25,
         },
         StylePreset::Default => Stroke {
             color: "black".to_string(),
@@ -194,7 +194,7 @@ fn concrete_stroke(settings: &GlobalSettings) -> Stroke {
 
 fn stirrup_outline_stroke(settings: &GlobalSettings, color: String) -> Stroke {
     match settings.style {
-        StylePreset::Spd => Stroke { color, width: 0.05 },
+        StylePreset::Spd => Stroke { color, width: 0.08 },
         StylePreset::Default => Stroke { color, width: 0.03 },
     }
 }
@@ -204,7 +204,7 @@ fn rebar_visual(settings: &GlobalSettings, bar_color: String) -> (Stroke, Option
         StylePreset::Spd => (
             Stroke {
                 color: "black".to_string(),
-                width: 0.06,
+                width: 0.08,
             },
             None,
         ),
@@ -234,7 +234,7 @@ fn rebar_line_stroke(settings: &GlobalSettings, bar_color: String, width: f64) -
     match settings.style {
         StylePreset::Spd => Stroke {
             color: "black".to_string(),
-            width: 0.08,
+            width: 0.12,
         },
         StylePreset::Default => {
             if settings.monochrome {
