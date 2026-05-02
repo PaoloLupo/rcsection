@@ -768,16 +768,18 @@ fn get_rebar_positions(
     let cover = get_cover(props, settings);
     let (_stirrup_size, stirrup_radius) = get_stirrup_info(props);
 
-    let max_bar_radius = rebar
+    let bar_radii: Vec<f64> = rebar
         .bars
         .iter()
-        .map(|b| parse_size(&b.size) / 2.0)
-        .fold(0.0_f64, |a, b| a.max(b));
+        .flat_map(|b| std::iter::repeat_n(parse_size(&b.size) / 2.0, b.count as usize))
+        .collect();
+
+    let max_bar_radius = bar_radii.iter().copied().fold(0.0_f64, |a, b| a.max(b));
 
     let steel_offset = cover + 2.0 * stirrup_radius + max_bar_radius;
-    let total_count = rebar.bars.iter().map(|b| b.count).sum::<u32>() as usize;
+    let total_count = bar_radii.len();
 
-    match rebar.pattern {
+    let positions = match rebar.pattern {
         ast::RebarPattern::Top => distribute_bars_horizontal(
             total_count,
             width - 2.0 * steel_offset,
@@ -805,7 +807,71 @@ fn get_rebar_positions(
             }
         }
         _ => vec![],
-    }
+    };
+
+    // Adjust positions: smaller bars sit closer to the stirrup (outer face),
+    // larger bars sit further in (inner face).
+    adjust_positions_by_bar_radius(&positions, &rebar.pattern, max_bar_radius, &bar_radii, width, height)
+}
+
+fn adjust_positions_by_bar_radius(
+    positions: &[(f64, f64)],
+    pattern: &ast::RebarPattern,
+    max_radius: f64,
+    bar_radii: &[f64],
+    width: f64,
+    height: f64,
+) -> Vec<(f64, f64)> {
+    let half_w = width / 2.0;
+    let half_h = height / 2.0;
+    let eps = 0.5; // tolerance for face detection
+
+    positions
+        .iter()
+        .enumerate()
+        .map(|(i, &(x, y))| {
+            let r = bar_radii.get(i).copied().unwrap_or(max_radius);
+            let delta = max_radius - r;
+            match pattern {
+                ast::RebarPattern::Top => (x, y + delta),         // push outward (up)
+                ast::RebarPattern::Bottom => (x, y - delta),      // push outward (down)
+                ast::RebarPattern::Sides => {
+                    if x > 0.0 {
+                        (x - delta, y)
+                    } else {
+                        (x + delta, y)
+                    }
+                }
+                ast::RebarPattern::Perimeter => {
+                    // Determine face by proximity to edges
+                    let on_top = (y - half_h).abs() < eps;
+                    let on_bottom = (y + half_h).abs() < eps;
+                    let on_right = (x - half_w).abs() < eps;
+                    let on_left = (x + half_w).abs() < eps;
+
+                    if on_top {
+                        (x, y + delta)
+                    } else if on_bottom {
+                        (x, y - delta)
+                    } else if on_right {
+                        (x - delta, y)
+                    } else if on_left {
+                        (x + delta, y)
+                    } else {
+                        // Corner or intermediate: adjust radially outward
+                        let mag = (x * x + y * y).sqrt();
+                        if mag > 0.0 {
+                            let scale = (mag + delta) / mag;
+                            (x * scale, y * scale)
+                        } else {
+                            (x, y)
+                        }
+                    }
+                }
+                _ => (x, y),
+            }
+        })
+        .collect()
 }
 
 fn calculate_longitudinal_spacings(
