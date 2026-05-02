@@ -1044,3 +1044,212 @@ fn format_rebar_callout(bars: &[ast::BarGroup]) -> String {
         .collect::<Vec<_>>()
         .join("+")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_section_dims_rect() {
+        let shape = Some(ast::Shape::Rect {
+            width: 30.0,
+            height: 60.0,
+        });
+        assert_eq!(get_section_dims(&shape), (30.0, 60.0));
+    }
+
+    #[test]
+    fn test_get_section_dims_circle() {
+        let shape = Some(ast::Shape::Circle { diameter: 40.0 });
+        assert_eq!(get_section_dims(&shape), (40.0, 40.0));
+    }
+
+    #[test]
+    fn test_get_section_dims_default() {
+        assert_eq!(get_section_dims(&None), (30.0, 60.0));
+    }
+
+    #[test]
+    fn test_get_cover_from_props() {
+        let props = ast::SectionProperties {
+            shape: None,
+            concrete: Some(ast::ConcreteProperties {
+                fc: None,
+                cover: Some(5.0),
+            }),
+            rebar: vec![],
+            ties: None,
+            view: None,
+            length: None,
+        };
+        let settings = GlobalSettings {
+            scale: None,
+            cover: 4.0,
+            stroke: None,
+        };
+        assert_eq!(get_cover(&props, &settings), 5.0);
+    }
+
+    #[test]
+    fn test_get_cover_from_settings() {
+        let props = ast::SectionProperties {
+            shape: None,
+            concrete: None,
+            rebar: vec![],
+            ties: None,
+            view: None,
+            length: None,
+        };
+        let settings = GlobalSettings {
+            scale: None,
+            cover: 4.0,
+            stroke: None,
+        };
+        assert_eq!(get_cover(&props, &settings), 4.0);
+    }
+
+    #[test]
+    fn test_get_cover_min_value() {
+        let props = ast::SectionProperties {
+            shape: None,
+            concrete: Some(ast::ConcreteProperties {
+                fc: None,
+                cover: Some(1.0),
+            }),
+            rebar: vec![],
+            ties: None,
+            view: None,
+            length: None,
+        };
+        let settings = GlobalSettings {
+            scale: None,
+            cover: 0.5,
+            stroke: None,
+        };
+        assert_eq!(get_cover(&props, &settings), 2.5);
+    }
+
+    #[test]
+    fn test_parse_size_tagged() {
+        assert!((parse_size("#4") - 1.27).abs() < 0.01);
+        assert!((parse_size("#8") - 2.54).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_size_fraction() {
+        assert!((parse_size("3/8") - 0.9525).abs() < 0.001);
+        assert!((parse_size("1/2") - 1.27).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_parse_size_inch() {
+        assert!((parse_size("1\"") - 2.54).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_parse_size_default() {
+        assert!((parse_size("invalid") - 1.27).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_get_color_for_size() {
+        assert_eq!(get_color_for_size("#4"), "#CC0000");
+        assert_eq!(get_color_for_size("1/2"), "#CC0000");
+        assert_eq!(get_color_for_size("#8\""), "#006400");
+        assert_eq!(get_color_for_size("unknown"), "black");
+    }
+
+    #[test]
+    fn test_distribute_bars_horizontal() {
+        let pos = distribute_bars_horizontal(3, 20.0, 5.0);
+        assert_eq!(pos.len(), 3);
+        assert_eq!(pos[0], (-10.0, 5.0));
+        assert_eq!(pos[1], (0.0, 5.0));
+        assert_eq!(pos[2], (10.0, 5.0));
+    }
+
+    #[test]
+    fn test_distribute_bars_horizontal_single() {
+        let pos = distribute_bars_horizontal(1, 20.0, 5.0);
+        assert_eq!(pos, vec![(0.0, 5.0)]);
+    }
+
+    #[test]
+    fn test_distribute_bars_sides() {
+        let pos = distribute_bars_sides(4, 20.0, 8.0);
+        assert_eq!(pos.len(), 4);
+        assert_eq!(pos[0], (8.0, -10.0));
+        assert_eq!(pos[1], (-8.0, -10.0));
+        assert_eq!(pos[2], (8.0, 10.0));
+        assert_eq!(pos[3], (-8.0, 10.0));
+    }
+
+    #[test]
+    fn test_distribute_bars_perim_corners_only() {
+        let pos = distribute_bars_perim(4, 20.0, 30.0);
+        assert_eq!(pos.len(), 4);
+        assert_eq!(pos[0], (-10.0, -15.0));
+        assert_eq!(pos[1], (10.0, -15.0));
+        assert_eq!(pos[2], (10.0, 15.0));
+        assert_eq!(pos[3], (-10.0, 15.0));
+    }
+
+    #[test]
+    fn test_distribute_bars_perim_with_intermediates() {
+        let pos = distribute_bars_perim(8, 20.0, 20.0);
+        assert_eq!(pos.len(), 8);
+    }
+
+    #[test]
+    fn test_distribute_bars_circle() {
+        let pos = distribute_bars_circle(4, 10.0);
+        assert_eq!(pos.len(), 4);
+        assert!((pos[0].0 - 10.0).abs() < 0.001);
+        assert!((pos[0].1).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_calculate_longitudinal_spacings() {
+        let ties = ast::StirrupsConfig {
+            size: "#3".to_string(),
+            dist: vec![
+                ast::Spacing::Fixed { count: 2, dist: 5.0 },
+                ast::Spacing::Rest { dist: 20.0 },
+            ],
+        };
+        let positions = calculate_longitudinal_spacings(100.0, 4.0, &ties);
+        assert!(!positions.is_empty());
+        // First positions should be near start
+        assert!(positions[0] > 4.0);
+        // Positions should be sorted
+        for i in 1..positions.len() {
+            assert!(positions[i] > positions[i - 1]);
+        }
+    }
+
+    #[test]
+    fn test_format_rebar_callout_single_group() {
+        let bars = vec![ast::BarGroup {
+            count: 3,
+            size: "#6".to_string(),
+        }];
+        assert_eq!(format_rebar_callout(&bars), "3#6");
+    }
+
+    #[test]
+    fn test_format_rebar_callout_multiple_groups() {
+        let bars = vec![
+            ast::BarGroup {
+                count: 2,
+                size: "#8".to_string(),
+            },
+            ast::BarGroup {
+                count: 1,
+                size: "3/8\"".to_string(),
+            },
+        ];
+        let result = format_rebar_callout(&bars);
+        assert!(result.contains("2#8"));
+        assert!(result.contains("1Ø3/8\""));
+    }
+}
