@@ -111,6 +111,9 @@ pub fn generate(nodes: &[ast::AstNode]) -> Vec<Drawing> {
                                 width: s.width,
                             })
                         }
+                        ast::GlobalProperty::Unit(u) => {
+                            global_settings.unit_factor = parse_unit_factor(u);
+                        }
                         _ => {}
                     }
                 }
@@ -137,6 +140,22 @@ struct GlobalSettings {
     scale: Option<f64>,
     cover: f64,
     stroke: Option<Stroke>,
+    unit_factor: f64,
+}
+
+fn parse_unit_factor(unit: &str) -> f64 {
+    match unit.to_lowercase().as_str() {
+        "mm" => 0.1,
+        "cm" => 1.0,
+        "m" => 100.0,
+        "in" | "\"" => 2.54,
+        "ft" | "'" => 30.48,
+        _ => 1.0,
+    }
+}
+
+fn apply_unit(value: f64, factor: f64) -> f64 {
+    value * factor
 }
 
 fn process_drawing_element(drawing: &mut Drawing, element: &ast::DrawingElement) {
@@ -229,21 +248,22 @@ fn map_primitive(p: &ast::Primitive) -> Primitive {
     }
 }
 
-fn get_section_dims(shape: &Option<ast::Shape>) -> (f64, f64) {
-    match shape {
+fn get_section_dims(shape: &Option<ast::Shape>, factor: f64) -> (f64, f64) {
+    let (w, h) = match shape {
         Some(ast::Shape::Rect { width, height }) => (*width, *height),
         Some(ast::Shape::Circle { diameter }) => (*diameter, *diameter),
         _ => (30.0, 60.0),
-    }
+    };
+    (apply_unit(w, factor), apply_unit(h, factor))
 }
 
 fn get_cover(props: &ast::SectionProperties, settings: &GlobalSettings) -> f64 {
-    props
+    let cover = props
         .concrete
         .as_ref()
         .and_then(|c| c.cover)
-        .unwrap_or(settings.cover)
-        .max(2.5)
+        .unwrap_or(settings.cover);
+    apply_unit(cover.max(2.5), settings.unit_factor)
 }
 
 fn get_stirrup_info(props: &ast::SectionProperties) -> (String, f64) {
@@ -266,7 +286,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
     let show_elevation = matches!(&props.view, Some(View::Elevation) | Some(View::Both));
 
     // Get dimensions for both views
-    let (width, height) = get_section_dims(&props.shape);
+    let (width, height) = get_section_dims(&props.shape, settings.unit_factor);
     let cover = get_cover(props, settings);
 
     // === Section View (Cross-section) ===
@@ -539,9 +559,9 @@ fn generate_longitudinal_drawing(
     d.view = Some(view_name.to_string());
     d.scale = settings.scale;
 
-    let (width, height) = get_section_dims(&props.shape);
+    let (width, height) = get_section_dims(&props.shape, settings.unit_factor);
     let cover = get_cover(props, settings);
-    let span = props.length.unwrap_or(200.0);
+    let span = apply_unit(props.length.unwrap_or(200.0), settings.unit_factor);
 
     if is_vertical {
         // --- VERTICAL ORIENTATION (Column) ---
@@ -622,7 +642,7 @@ fn generate_longitudinal_drawing(
             let x_min = -width / 2.0 + cover + tie_thickness / 2.0;
             let x_max = width / 2.0 - cover - tie_thickness / 2.0;
 
-            let positions = calculate_longitudinal_spacings(span, cover, ties);
+            let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
             for y in positions {
                 d.add(Primitive::Path {
                     points: vec![(x_min, y), (x_max, y)],
@@ -709,7 +729,7 @@ fn generate_longitudinal_drawing(
             let y_min = -height / 2.0 + cover + tie_thickness / 2.0;
             let y_max = height / 2.0 - cover - tie_thickness / 2.0;
 
-            let positions = calculate_longitudinal_spacings(span, cover, ties);
+            let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
             for x in positions {
                 d.add(Primitive::Path {
                     points: vec![(x, y_min), (x, y_max)],
@@ -733,7 +753,7 @@ fn get_rebar_positions(
     props: &ast::SectionProperties,
     settings: &GlobalSettings,
 ) -> Vec<(f64, f64)> {
-    let (width, height) = get_section_dims(&props.shape);
+    let (width, height) = get_section_dims(&props.shape, settings.unit_factor);
     let cover = get_cover(props, settings);
     let (_stirrup_size, stirrup_radius) = get_stirrup_info(props);
 
@@ -777,10 +797,14 @@ fn get_rebar_positions(
     }
 }
 
-fn calculate_longitudinal_spacings(span: f64, cover: f64, ties: &ast::StirrupsConfig) -> Vec<f64> {
+fn calculate_longitudinal_spacings(
+    span: f64,
+    cover: f64,
+    ties: &ast::StirrupsConfig,
+    factor: f64,
+) -> Vec<f64> {
     let mut positions = Vec::new();
 
-    // Helper to insert if not too close to an existing position
     let mut insert = |x: f64| {
         if !positions.iter().any(|p| (p - x).abs() < 0.01) {
             positions.push(x);
@@ -791,8 +815,9 @@ fn calculate_longitudinal_spacings(span: f64, cover: f64, ties: &ast::StirrupsCo
     let mut x_start = cover;
     for spacing in &ties.dist {
         if let ast::Spacing::Fixed { count, dist } = spacing {
+            let d = apply_unit(*dist, factor);
             for _ in 0..*count {
-                x_start += dist;
+                x_start += d;
                 if x_start < span / 2.0 {
                     insert(x_start);
                 }
@@ -804,8 +829,9 @@ fn calculate_longitudinal_spacings(span: f64, cover: f64, ties: &ast::StirrupsCo
     let mut x_end = span - cover;
     for spacing in &ties.dist {
         if let ast::Spacing::Fixed { count, dist } = spacing {
+            let d = apply_unit(*dist, factor);
             for _ in 0..*count {
-                x_end -= dist;
+                x_end -= d;
                 if x_end > span / 2.0 {
                     insert(x_end);
                 }
@@ -819,17 +845,17 @@ fn calculate_longitudinal_spacings(span: f64, cover: f64, ties: &ast::StirrupsCo
         .iter()
         .find_map(|s| {
             if let ast::Spacing::Rest { dist } = s {
-                Some(*dist)
+                Some(apply_unit(*dist, factor))
             } else {
                 None
             }
         })
-        .unwrap_or(20.0);
+        .unwrap_or_else(|| apply_unit(20.0, factor));
 
     let mut left_bound = cover;
     for spacing in &ties.dist {
         if let ast::Spacing::Fixed { count, dist } = spacing {
-            left_bound += *count as f64 * dist;
+            left_bound += *count as f64 * apply_unit(*dist, factor);
         } else {
             break;
         }
@@ -838,7 +864,7 @@ fn calculate_longitudinal_spacings(span: f64, cover: f64, ties: &ast::StirrupsCo
     let mut right_bound = span - cover;
     for spacing in &ties.dist {
         if let ast::Spacing::Fixed { count, dist } = spacing {
-            right_bound -= *count as f64 * dist;
+            right_bound -= *count as f64 * apply_unit(*dist, factor);
         } else {
             break;
         }
@@ -1055,18 +1081,27 @@ mod tests {
             width: 30.0,
             height: 60.0,
         });
-        assert_eq!(get_section_dims(&shape), (30.0, 60.0));
+        assert_eq!(get_section_dims(&shape, 1.0), (30.0, 60.0));
     }
 
     #[test]
     fn test_get_section_dims_circle() {
         let shape = Some(ast::Shape::Circle { diameter: 40.0 });
-        assert_eq!(get_section_dims(&shape), (40.0, 40.0));
+        assert_eq!(get_section_dims(&shape, 1.0), (40.0, 40.0));
     }
 
     #[test]
     fn test_get_section_dims_default() {
-        assert_eq!(get_section_dims(&None), (30.0, 60.0));
+        assert_eq!(get_section_dims(&None, 1.0), (30.0, 60.0));
+    }
+
+    #[test]
+    fn test_get_section_dims_with_unit() {
+        let shape = Some(ast::Shape::Rect {
+            width: 300.0,
+            height: 600.0,
+        });
+        assert_eq!(get_section_dims(&shape, 0.1), (30.0, 60.0));
     }
 
     #[test]
@@ -1086,6 +1121,7 @@ mod tests {
             scale: None,
             cover: 4.0,
             stroke: None,
+            unit_factor: 1.0,
         };
         assert_eq!(get_cover(&props, &settings), 5.0);
     }
@@ -1104,6 +1140,7 @@ mod tests {
             scale: None,
             cover: 4.0,
             stroke: None,
+            unit_factor: 1.0,
         };
         assert_eq!(get_cover(&props, &settings), 4.0);
     }
@@ -1125,8 +1162,31 @@ mod tests {
             scale: None,
             cover: 0.5,
             stroke: None,
+            unit_factor: 1.0,
         };
         assert_eq!(get_cover(&props, &settings), 2.5);
+    }
+
+    #[test]
+    fn test_get_cover_with_unit() {
+        let props = ast::SectionProperties {
+            shape: None,
+            concrete: Some(ast::ConcreteProperties {
+                fc: None,
+                cover: Some(40.0),
+            }),
+            rebar: vec![],
+            ties: None,
+            view: None,
+            length: None,
+        };
+        let settings = GlobalSettings {
+            scale: None,
+            cover: 40.0,
+            stroke: None,
+            unit_factor: 0.1,
+        };
+        assert_eq!(get_cover(&props, &settings), 4.0);
     }
 
     #[test]
@@ -1149,6 +1209,24 @@ mod tests {
     #[test]
     fn test_parse_size_default() {
         assert!((parse_size("invalid") - 1.27).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_parse_unit_factor() {
+        assert_eq!(parse_unit_factor("cm"), 1.0);
+        assert_eq!(parse_unit_factor("mm"), 0.1);
+        assert_eq!(parse_unit_factor("m"), 100.0);
+        assert_eq!(parse_unit_factor("in"), 2.54);
+        assert_eq!(parse_unit_factor("\""), 2.54);
+        assert_eq!(parse_unit_factor("ft"), 30.48);
+        assert_eq!(parse_unit_factor("unknown"), 1.0);
+    }
+
+    #[test]
+    fn test_apply_unit() {
+        assert_eq!(apply_unit(10.0, 1.0), 10.0);
+        assert_eq!(apply_unit(10.0, 0.1), 1.0);
+        assert_eq!(apply_unit(10.0, 100.0), 1000.0);
     }
 
     #[test]
@@ -1217,7 +1295,7 @@ mod tests {
                 ast::Spacing::Rest { dist: 20.0 },
             ],
         };
-        let positions = calculate_longitudinal_spacings(100.0, 4.0, &ties);
+        let positions = calculate_longitudinal_spacings(100.0, 4.0, &ties, 1.0);
         assert!(!positions.is_empty());
         // First positions should be near start
         assert!(positions[0] > 4.0);
