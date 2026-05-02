@@ -1,52 +1,70 @@
-# RCSection - A plugin for drawing reinforced concrete sections in [Typst](https://typst.app)
+# RCSection — Gráficos para secciones de concreto armado en [Typst](https://typst.app)
 
-RCSection is a plugin for [Typst](https://typst.app) that allows you to create sections for reinforced concrete beams, columns, and slabs.
+RCSection es un plugin para [Typst](https://typst.app) que permite crear gráficos de secciones de concreto armado: vigas, columnas, muros y otros elementos estructurales.
 
-## Installation
+## Instalación
 
-Import the package from the preview namespace (once published) or local file:
+Importa el paquete desde el namespace de preview (una vez publicado) o desde un archivo local:
 
 ```typ
 #import "@preview/rcsection:0.1.0": init_rcsection
 ```
 
-Or if you are using it locally:
+O si lo usas localmente:
 
 ```typ
 #import "src/rcsection.typ": init_rcsection
 ```
 
-## Usage
+## Uso
 
-To use `rcsection`, you need to initialize it with a show rule. Then you can write your section definitions in `rcs` code blocks.
+Para usar `rcsection`, inicialízalo con una regla `show`. Luego escribe las definiciones de los elementos en bloques de código `rcs`.
 
 ```typ
 #import "@preview/rcsection:0.1.0": init_rcsection
 
-// Initialize the plugin
+// Inicializar el plugin
 #show: init_rcsection
 
-// Create a figure with a beam section
+// Crear una figura con una viga
 #figure(
   ```rcs
   beam "V-101":
-      shape rect 30 50     // Dimensions: width x height
-      length 400           // Span length (for longitudinal view)
+      shape rect 30 50     // Dimensiones: ancho x alto
+      length 400           // Luz (para vista longitudinal)
       concrete:
-          cover 4          // Concrete cover
+          cover 4          // Recubrimiento
 
-      // Reinforcement
-      top 2 1"             // Top bars: count size
-      bot 3 1"             // Bottom bars: count size
-      ties 3/8" 1@15       // Stirrups: size spacing
+      // Refuerzo longitudinal
+      top 2 1"             // Barras superiores: cantidad tamaño
+      bot 3 1"             // Barras inferiores: cantidad tamaño
+      ties 3/8" 1@15       // Estribos: tamaño espaciamiento
   ```,
-  caption: "Reinforced Concrete Beam Detail",
+  caption: "Detalle de viga de concreto armado",
 )
 ```
 
-## Features
+## Características
 
-- **Beams & Columns**: Define rectangular or circular sections with reinforcement.
-- **Views**: Generate cross-sections, longitudinal views, or both.
-- **Scaling**: Control the scale of the drawing (e.g., `1:50`, `1:20`).
-- **Customization**: Configure concrete cover, stirrup spacing, bar sizes, and colors.
+- **Vigas y columnas**: Define secciones rectangulares o circulares con refuerzo.
+- **Vistas**: Genera cortes transversales, vistas longitudinales, vistas de elevación o ambas.
+- **Escalas**: Controla la escala del dibujo globalmente o por tipo de vista (ej. `scale section 1:10`, `scale longitudinal 1:25`).
+- **Personalización**: Configura recubrimiento, espaciamiento de estribos, tamaños de barra, estilos visuales y unidades.
+- **Estilos**: Modo monocromático (SPD) con líneas negras y jerarquía técnica, o modo por defecto con colores por diámetro.
+
+## Tipos de elemento
+
+| Tipo | Descripción |
+|------|-------------|
+| `beam` | Viga — vista longitudinal horizontal |
+| `column` | Columna — vista de elevación vertical |
+| `wall` | Muro/placa — vista de elevación vertical |
+| `section` | Genérico (compatibilidad) — vista longitudinal horizontal |
+
+## Documentación
+
+Consulta el [manual completo](docs/manual.pdf) para más detalles sobre la sintaxis, propiedades y ejemplos.
+
+## Licencia
+
+MIT

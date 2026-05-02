@@ -59,15 +59,15 @@ pub enum Primitive {
         text: Option<String>,
         group: Option<String>,
     },
-    /// Leader line with arrow for rebar callouts (ACI style)
+    /// Línea guía con flecha para llamadas de acero (estilo ACI)
     LeaderLine {
-        /// Start point (near the rebar group)
+        /// Punto inicial (cerca del grupo de aceros)
         start: (f64, f64),
-        /// End point (where text is placed)
+        /// Punto final (donde se ubica el texto)
         end: (f64, f64),
-        /// Annotation text (e.g., "3#6" or "2 3/8\"")
+        /// Texto de anotación (ej. "3#6" o "2 3/8\"")
         text: String,
-        /// Which side the callout points to (for text anchor)
+        /// Lado al que apunta la llamada (para anclaje del texto)
         side: String,
         group: Option<String>,
     },
@@ -392,7 +392,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
     let props = &section.properties;
 
     // Determine which views to generate
-    // If no explicit view is set, infer from section kind
+    // Si no hay vista explícita, inferir según el tipo de elemento
     let (default_longitudinal, default_elevation) = match section.kind {
         ast::SectionKind::Beam => (true, false),
         ast::SectionKind::Column | ast::SectionKind::Wall => (false, true),
@@ -414,7 +414,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
     let (width, height) = get_section_dims(&props.shape, settings.unit_factor);
     let cover = get_cover(props, settings);
 
-    // === Section View (Cross-section) ===
+    // === Vista de sección (corte transversal) ===
     if show_section {
         let mut d = Drawing::new();
         d.id = Some(section.id.clone());
@@ -457,7 +457,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
             }
         }
 
-        // Add stirrup in section view
+        // Dibujar estribo en vista de sección
         if let Some(ties) = &props.ties {
             let tie_color = if settings.monochrome || settings.style == StylePreset::Spd {
                 "black".to_string()
@@ -470,7 +470,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                 match shape {
                     ast::Shape::Rect { width, height } => {
                         let outline = stirrup_outline_stroke(settings, tie_color.clone());
-                        // Outer contour of stirrup
+                        // Contorno exterior del estribo
                         d.add(Primitive::Rect {
                             x: -width / 2.0 + cover,
                             y: -height / 2.0 + cover,
@@ -481,8 +481,8 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                             fill: None,
                             group: Some("stirrup".to_string()),
                         });
-                        // Inner contour of stirrup (hole)
-                        // Radius must shrink by thickness for concentric arcs
+                        // Contorno interior del estribo (hueco)
+                        // El radio debe reducirse por el espesor para arcos concéntricos
                         let inner_radius = (bend_radius - tie_thickness).max(0.0);
                         d.add(Primitive::Rect {
                             x: -width / 2.0 + cover + tie_thickness,
@@ -521,7 +521,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
             }
         }
 
-        // Add rebar circles in section view
+        // Dibujar aceros como círculos en vista de sección
         for rebar in &props.rebar {
             let (_stirrup_size, _stirrup_radius) = get_stirrup_info(props);
 
@@ -556,7 +556,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                 });
             }
 
-            // Generate callout for this rebar group
+            // Generar llamada para este grupo de aceros
             if !positions.is_empty() {
                 // Pick the best bar position for the arrow origin based on pattern
                 let (arrow_origin, side) = match rebar.pattern {
@@ -599,7 +599,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                 // Format text: preserve original size notation
                 let callout_text = format_rebar_callout(&rebar.bars);
 
-                // Calculate end point - use absolute offsets to ensure arrow extends outside section
+                // Calcular punto final: usar desplazamientos absolutos para asegurar que la flecha salga del corte
                 let (offset_x, offset_y) = match rebar.pattern {
                     ast::RebarPattern::Top => {
                         (10.0_f64.max(width * 0.15), 8.0_f64.max(height * 0.1))
@@ -629,9 +629,9 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
             }
         }
 
-        // Add section dimensions (width at bottom, height at left) - ONLY FOR RECT SHAPES
-        if let Some(ast::Shape::Rect { .. }) = &props.shape {
-            let dim_offset = 8.0; // Distance from section edge to dimension line
+        // Añadir cotas de la sección (ancho abajo, alto a la izquierda) — SOLO PARA FORMAS RECTANGULARES
+        if matches!(&props.shape, Some(ast::Shape::Rect { .. })) {
+            let dim_offset = 8.0; // Distancia desde el borde de la sección hasta la línea de cota
 
             // Width dimension (bottom)
             d.add(Primitive::Dimension {
@@ -657,7 +657,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
         drawings.push(d);
     }
 
-    // === Longitudinal View (Side elevation / Beam elevation) ===
+    // === Vista longitudinal (viga) ===
     if show_longitudinal {
         drawings.push(generate_longitudinal_drawing(
             section,
@@ -668,7 +668,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
         ));
     }
 
-    // === Vertical Elevation (Column elevation) ===
+    // === Vista de elevación (columna) ===
     if show_elevation {
         drawings.push(generate_longitudinal_drawing(
             section,
@@ -703,8 +703,8 @@ fn generate_longitudinal_drawing(
     let span = apply_unit(props.length.unwrap_or(200.0), settings.unit_factor);
 
     if is_vertical {
-        // --- VERTICAL ORIENTATION (Column) ---
-        // Concrete outline
+        // --- ORIENTACIÓN VERTICAL (Columna) ---
+        // Contorno de concreto
         d.add(Primitive::Rect {
             x: -width / 2.0,
             y: 0.0,
@@ -716,7 +716,7 @@ fn generate_longitudinal_drawing(
             group: Some("concrete".to_string()),
         });
 
-        // Rebar
+        // Aceros longitudinales
         for rebar in &props.rebar {
             let bar_size = rebar
                 .bars
@@ -767,7 +767,7 @@ fn generate_longitudinal_drawing(
                     (width * 0.4 + 10.0, "right") // Right side, text anchored west
                 };
 
-                // Position callout at 80% of the column height
+                // Posicionar llamada al 80% de la altura de la columna
                 let y_anchor = span * 0.8;
                 d.add(Primitive::LeaderLine {
                     start: (x_pos, y_anchor),
@@ -779,7 +779,7 @@ fn generate_longitudinal_drawing(
             }
         }
 
-        // Stirrups
+        // Estribos
         if let Some(ties) = &props.ties {
             let tie_color = if settings.monochrome || settings.style == StylePreset::Spd {
                 "black".to_string()
@@ -824,7 +824,7 @@ fn generate_longitudinal_drawing(
             }
         }
     } else {
-        // --- HORIZONTAL ORIENTATION (Beam) ---
+        // --- ORIENTACIÓN HORIZONTAL (Viga) ---
         d.add(Primitive::Rect {
             x: 0.0,
             y: -height / 2.0,
@@ -847,7 +847,7 @@ fn generate_longitudinal_drawing(
 
             let positions = get_rebar_positions(rebar, props, settings);
 
-            // Project Y coordinates (for horizontal longitudinal)
+            // Proyectar coordenadas Y (para longitudinal horizontal)
             let mut unique_y: Vec<f64> = positions.iter().map(|p| p.1).collect();
             unique_y.sort_by(|a, b| a.partial_cmp(b).unwrap());
             unique_y.dedup_by(|a, b| (*a - *b).abs() < 0.1);
@@ -993,7 +993,7 @@ fn get_rebar_positions(
         _ => vec![],
     };
 
-    // Adjust positions: smaller bars sit closer to the stirrup (outer face),
+    // Ajustar posiciones: barras más pequeñas más cerca del estribo (cara exterior),
     // larger bars sit further in (inner face).
     adjust_positions_by_bar_radius(&positions, &rebar.pattern, max_bar_radius, &bar_radii, width, height)
 }
@@ -1269,7 +1269,7 @@ fn distribute_bars_circle(count: usize, radius: f64) -> Vec<(f64, f64)> {
     pos
 }
 
-/// Bend radius for stirrup corners (hook radius).
+/// Radio de doblez para esquinas de estribo (radio de gancho).
 /// Based on ACI 318 / E.060: D ≈ 4·db → radius = D/2 = 2·db
 fn get_tie_bend_radius(size_str: &str) -> f64 {
     let db = parse_size(size_str);
@@ -1312,7 +1312,7 @@ fn get_color_for_size(size: &str) -> String {
     }
 }
 
-/// Format rebar callout text, grouping by size and preserving original notation.
+/// Formatear texto de llamada de acero, agrupando por tamaño y preservando la notación original.
 /// Examples: "3#6", "2Ø3/8\"", "2#8+1Ø3/8\""
 fn format_rebar_callout(bars: &[ast::BarGroup]) -> String {
     use std::collections::BTreeMap;

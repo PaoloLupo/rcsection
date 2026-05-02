@@ -11,19 +11,19 @@
   else { black }
 }
 
-/// Extract stroke from primitive, scaling width appropriately
+/// Extraer trazo del primitivo, escalando el ancho apropiadamente
 #let parse-stroke(primitive, scale) = {
   if primitive.stroke == none { return none }
   let s-val = primitive.stroke.width * scale * 28.346
   (paint: parse-color(primitive.stroke.color), thickness: s-val * 1pt)
 }
 
-/// Extract fill from primitive
+/// Extraer relleno del primitivo
 #let parse-fill(primitive) = {
   if primitive.fill == none { none } else { parse-color(primitive.fill) }
 }
 
-/// Draw a dimension primitive with extension lines and centered text
+/// Dibujar un primitivo de cota con líneas de extensión y texto centrado
 #let draw-dimension(p) = {
   let x1 = p.x1
   let y1 = p.y1
@@ -31,7 +31,7 @@
   let y2 = p.y2
   let is-horizontal = calc.abs(y2 - y1) < 0.01
 
-  // Dimension line with arrows
+  // Línea de cota con flechas
   cetz.draw.line(
     (x1, y1),
     (x2, y2),
@@ -39,7 +39,7 @@
     mark: (start: "<", end: ">", fill: black, scale: 0.3),
   )
 
-  // Extension lines
+  // Líneas de extensión
   let gap = 1.0
   let beyond = 2.0
   if is-horizontal {
@@ -52,7 +52,7 @@
     cetz.draw.line((section-x - gap, y2), (x2 - beyond, y2), stroke: 0.2pt)
   }
 
-  // Centered text
+  // Texto centrado
   let txt = p.text
   if txt != none and txt != "" {
     let mid-x = (x1 + x2) / 2
@@ -62,7 +62,7 @@
   }
 }
 
-/// Draw a leader line with arrow and anchored text
+/// Dibujar línea guía con flecha y texto anclado
 #let draw-leader-line(p) = {
   let start = p.start
   let end = p.end
@@ -89,7 +89,7 @@
   cetz.draw.content(end, anchor: anchor, padding: 0.1, [#p.text])
 }
 
-/// Draw a single primitive inside a CETZ canvas
+/// Dibujar un primitivo individual dentro de un lienzo CETZ
 #let draw-primitive(p, scale) = {
   let t = p.type
   if t == "Rect" {
@@ -136,7 +136,7 @@
   }
 }
 
-/// Main draw function: renders a list of drawings into a Typst table layout
+/// Función principal de dibujo: renderiza una lista de dibujos en un layout de tabla Typst
 #let draw(drawings, scale: 0.1, show-label: true, view: none) = {
   let filtered = if view != none {
     drawings.filter(d => d.view == view or d.view == none or view == "all" or view == "both")
