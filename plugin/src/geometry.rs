@@ -803,21 +803,29 @@ fn generate_longitudinal_drawing(
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
             let hook = tie_thickness * 2.0; // 90-degree hook length
-            let stirrup_stroke = if settings.style == StylePreset::Spd {
-                stirrup_outline_stroke(settings, tie_color.clone())
-            } else {
-                Stroke {
-                    color: tie_color.clone(),
-                    width: tie_thickness,
-                }
-            };
+            let stirrup_stroke = stirrup_outline_stroke(settings, tie_color.clone());
+            let r = tie_thickness / 2.0;
             for y in positions {
+                // Outer contour
                 d.add(Primitive::Path {
                     points: vec![
-                        (x_min - hook, y), // left hook
-                        (x_min, y),
-                        (x_max, y),
-                        (x_max + hook, y), // right hook
+                        (x_min - hook, y + r),
+                        (x_min, y + r),
+                        (x_max, y + r),
+                        (x_max + hook, y + r),
+                    ],
+                    closed: false,
+                    stroke: Some(stirrup_stroke.clone()),
+                    fill: None,
+                    group: Some("stirrup".to_string()),
+                });
+                // Inner contour (hole)
+                d.add(Primitive::Path {
+                    points: vec![
+                        (x_min - hook, y - r),
+                        (x_min, y - r),
+                        (x_max, y - r),
+                        (x_max + hook, y - r),
                     ],
                     closed: false,
                     stroke: Some(stirrup_stroke.clone()),
@@ -899,21 +907,29 @@ fn generate_longitudinal_drawing(
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
             let hook = tie_thickness * 2.0; // 90-degree hook length
-            let stirrup_stroke = if settings.style == StylePreset::Spd {
-                stirrup_outline_stroke(settings, tie_color.clone())
-            } else {
-                Stroke {
-                    color: tie_color.clone(),
-                    width: tie_thickness,
-                }
-            };
+            let stirrup_stroke = stirrup_outline_stroke(settings, tie_color.clone());
+            let r = tie_thickness / 2.0;
             for x in positions {
+                // Outer contour
                 d.add(Primitive::Path {
                     points: vec![
-                        (x, y_min - hook), // bottom hook
-                        (x, y_min),
-                        (x, y_max),
-                        (x, y_max + hook), // top hook
+                        (x + r, y_min - hook), // bottom hook
+                        (x + r, y_min),
+                        (x + r, y_max),
+                        (x + r, y_max + hook), // top hook
+                    ],
+                    closed: false,
+                    stroke: Some(stirrup_stroke.clone()),
+                    fill: None,
+                    group: Some("stirrup".to_string()),
+                });
+                // Inner contour (hole)
+                d.add(Primitive::Path {
+                    points: vec![
+                        (x - r, y_min - hook), // bottom hook
+                        (x - r, y_min),
+                        (x - r, y_max),
+                        (x - r, y_max + hook), // top hook
                     ],
                     closed: false,
                     stroke: Some(stirrup_stroke.clone()),
