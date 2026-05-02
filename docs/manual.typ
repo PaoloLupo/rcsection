@@ -191,6 +191,36 @@ scale <vista> <valor>
 ```
 _Valor por defecto: `1:20`_
 
+=== Unidades
+Define la unidad de longitud para todas las dimensiones de la sección. El motor interno trabaja en centímetros, por lo que los valores son convertidos automáticamente.
+
+```
+unit <unidad>
+```
+
+Unidades soportadas:
+
+#table(
+  columns: (1fr, 3fr),
+  [`cm`], [Centímetros \ _valor por defecto_],
+  [`mm`], [Milímetros],
+  [`m`], [Metros],
+  [`in`], [Pulgadas],
+  [`ft`], [Pies],
+)
+
+*Ejemplo:*
+```rcs
+set:
+    unit "mm"
+    scale 1:50
+
+section "V-101":
+    shape rect 300 600   // 30 cm x 60 cm
+    cover 40             // 4 cm
+    top 3 #6
+```
+
 === Dimensiones
 Habilita la gráfica de las cotas para las dimensiones de la sección.
 
@@ -303,3 +333,81 @@ _Ejemplo: `1@5 4@10 rto@20`_
 #example("../examples/circular.rcs", caption: "Muro")
 
 #example("../examples/longitudinal.rcs", caption: "Viga con vista longitudinal", wide: true)
+
+= Propuestas de evolución del lenguaje
+
+Las siguientes características están propuestas para futuras versiones. Su sintaxis puede cambiar.
+
+== Templates (reusabilidad)
+
+Permite definir plantillas reutilizables para evitar repetición en proyectos con muchas secciones idénticas:
+
+```rcs-future
+set:
+    unit "cm"
+
+template "viga-std":
+    shape rect 30 50
+    cover 4
+    ties #3 rto@15
+
+section "V-101" from "viga-std":
+    top 3 #6
+    bot 2 #8
+
+section "V-102" from "viga-std":
+    top 2 #8
+    bot 3 #8
+```
+
+== Control de capas (z-order)
+
+Controla el orden de superposición de los elementos gráficos:
+
+```rcs-future
+section "V-101":
+    shape rect 30 50
+    layer "concrete" z 0
+    layer "stirrup" z 10
+    layer "rebar" z 20
+    top 3 #6
+```
+
+== Control de callouts
+
+Permite personalizar la posición y orientación de las flechas de acero:
+
+```rcs-future
+section "V-101":
+    shape rect 30 50
+    top 3 #6:
+        callout right offset 12
+    bot 2 #8:
+        callout left offset 10
+```
+
+== Vistas nombradas y escalas múltiples
+
+Genera distintas vistas con escalas independientes en la misma figura:
+
+```rcs-future
+section "V-101":
+    shape rect 30 50
+    view "section" scale 1:20
+    view "detail" scale 1:5 region (10,10,20,30)
+    top 3 #6
+    bot 2 #8
+```
+
+== Secciones compuestas (T, L, I)
+
+Define secciones compuestas a partir de formas simples:
+
+```rcs-future
+section "VT-101":
+    shape t-beam:
+        web rect 30 50
+        flange rect 60 10 offset (0, 25)
+    top 3 #6
+    bot 2 #8
+```
