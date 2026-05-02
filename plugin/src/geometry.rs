@@ -355,6 +355,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
         if let Some(ties) = &props.ties {
             let tie_color = get_color_for_size(&ties.size);
             let tie_thickness = parse_size(&ties.size);
+            let bend_radius = get_tie_bend_radius(&ties.size);
             if let Some(shape) = &props.shape {
                 match shape {
                     ast::Shape::Rect { width, height } => {
@@ -363,7 +364,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                             y: -height / 2.0 + cover + tie_thickness / 2.0,
                             width: width - 2.0 * cover - tie_thickness,
                             height: height - 2.0 * cover - tie_thickness,
-                            rounded: None,
+                            rounded: Some(bend_radius),
                             stroke: Some(Stroke {
                                 color: tie_color,
                                 width: tie_thickness, // Provided in CM, draw.typ will scale
@@ -1016,6 +1017,13 @@ fn distribute_bars_circle(count: usize, radius: f64) -> Vec<(f64, f64)> {
         pos.push((radius * angle.cos(), radius * angle.sin()));
     }
     pos
+}
+
+/// Bend radius for stirrup corners (hook radius).
+/// Based on ACI 318 / E.060: D ≈ 4·db → radius = D/2 = 2·db
+fn get_tie_bend_radius(size_str: &str) -> f64 {
+    let db = parse_size(size_str);
+    2.0 * db
 }
 
 #[allow(dead_code)]

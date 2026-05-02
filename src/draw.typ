@@ -93,13 +93,24 @@
 #let draw-primitive(p, scale) = {
   let t = p.type
   if t == "Rect" {
-    cetz.draw.rect(
-      (p.x, p.y),
-      (p.x + p.width, p.y + p.height),
-      stroke: parse-stroke(p, scale),
-      fill: parse-fill(p),
-      name: p.group,
-    )
+    if p.rounded != none {
+      cetz.draw.rect(
+        (p.x, p.y),
+        (p.x + p.width, p.y + p.height),
+        stroke: parse-stroke(p, scale),
+        fill: parse-fill(p),
+        name: p.group,
+        radius: p.rounded,
+      )
+    } else {
+      cetz.draw.rect(
+        (p.x, p.y),
+        (p.x + p.width, p.y + p.height),
+        stroke: parse-stroke(p, scale),
+        fill: parse-fill(p),
+        name: p.group,
+      )
+    }
   } else if t == "Circle" {
     cetz.draw.circle(
       (p.x, p.y),
