@@ -223,19 +223,6 @@ fn stirrup_outline_stroke(settings: &GlobalSettings, color: String) -> Stroke {
     }
 }
 
-/// Generate points for a semicircular arc.
-/// `center` is the arc center, `radius` the arc radius.
-/// `start_angle` and `end_angle` are in radians.
-fn arc_points(center: (f64, f64), radius: f64, start_angle: f64, end_angle: f64, segments: usize) -> Vec<(f64, f64)> {
-    let mut pts = Vec::with_capacity(segments + 1);
-    for i in 0..=segments {
-        let t = i as f64 / segments as f64;
-        let angle = start_angle + t * (end_angle - start_angle);
-        pts.push((center.0 + radius * angle.cos(), center.1 + radius * angle.sin()));
-    }
-    pts
-}
-
 fn rebar_visual(settings: &GlobalSettings, bar_color: String) -> (Stroke, Option<String>) {
     match settings.style {
         StylePreset::Spd => (
@@ -804,39 +791,36 @@ fn generate_longitudinal_drawing(
             let x_max = width / 2.0 - cover - tie_thickness / 2.0;
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
-            let hook = tie_thickness * 2.0; // hook radius
-            let stirrup_stroke = stirrup_outline_stroke(settings, tie_color.clone());
             let r = tie_thickness / 2.0;
+            let stroke = stirrup_outline_stroke(settings, tie_color.clone());
+            let w = stroke.width * 1.5;
+            let rect_width = (x_max - x_min) + 2.0 * r;
+            let rect_height = 2.0 * r;
             for y in positions {
-                // Outer contour with semicircular hooks
-                let mut outer_pts = Vec::new();
-                // left hook (opening left)
-                outer_pts.extend(arc_points((x_min - hook, y + r), hook, -std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2, 8));
-                // straight segment
-                outer_pts.push((x_min, y + r));
-                outer_pts.push((x_max, y + r));
-                // right hook (opening right)
-                outer_pts.extend(arc_points((x_max + hook, y + r), hook, std::f64::consts::FRAC_PI_2, 3.0 * std::f64::consts::FRAC_PI_2, 8));
-                d.add(Primitive::Path {
-                    points: outer_pts,
-                    closed: false,
-                    stroke: Some(stirrup_stroke.clone()),
+                // Exterior capsule
+                d.add(Primitive::Rect {
+                    x: x_min - r,
+                    y: y - r,
+                    width: rect_width,
+                    height: rect_height,
+                    rounded: Some(r),
+                    stroke: Some(stroke.clone()),
                     fill: None,
                     group: Some("stirrup".to_string()),
                 });
-                // Inner contour (hole) with semicircular hooks
-                let mut inner_pts = Vec::new();
-                inner_pts.extend(arc_points((x_min - hook, y - r), hook, -std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2, 8));
-                inner_pts.push((x_min, y - r));
-                inner_pts.push((x_max, y - r));
-                inner_pts.extend(arc_points((x_max + hook, y - r), hook, std::f64::consts::FRAC_PI_2, 3.0 * std::f64::consts::FRAC_PI_2, 8));
-                d.add(Primitive::Path {
-                    points: inner_pts,
-                    closed: false,
-                    stroke: Some(stirrup_stroke.clone()),
-                    fill: None,
-                    group: Some("stirrup".to_string()),
-                });
+                // Interior capsule (hole)
+                if r > w {
+                    d.add(Primitive::Rect {
+                        x: x_min - r + w,
+                        y: y - r + w,
+                        width: rect_width - 2.0 * w,
+                        height: rect_height - 2.0 * w,
+                        rounded: Some(r - w),
+                        stroke: Some(stroke.clone()),
+                        fill: None,
+                        group: Some("stirrup".to_string()),
+                    });
+                }
             }
         }
     } else {
@@ -922,39 +906,36 @@ fn generate_longitudinal_drawing(
             let y_max = height / 2.0 - cover - tie_thickness / 2.0;
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
-            let hook = tie_thickness * 2.0; // hook radius
-            let stirrup_stroke = stirrup_outline_stroke(settings, tie_color.clone());
             let r = tie_thickness / 2.0;
+            let stroke = stirrup_outline_stroke(settings, tie_color.clone());
+            let w = stroke.width * 1.5;
+            let rect_width = 2.0 * r;
+            let rect_height = (y_max - y_min) + 2.0 * r;
             for x in positions {
-                // Outer contour with semicircular hooks
-                let mut outer_pts = Vec::new();
-                // bottom hook (opening down)
-                outer_pts.extend(arc_points((x + r, y_min - hook), hook, 0.0, std::f64::consts::PI, 8));
-                // straight segment
-                outer_pts.push((x + r, y_min));
-                outer_pts.push((x + r, y_max));
-                // top hook (opening up)
-                outer_pts.extend(arc_points((x + r, y_max + hook), hook, std::f64::consts::PI, 2.0 * std::f64::consts::PI, 8));
-                d.add(Primitive::Path {
-                    points: outer_pts,
-                    closed: false,
-                    stroke: Some(stirrup_stroke.clone()),
+                // Exterior capsule
+                d.add(Primitive::Rect {
+                    x: x - r,
+                    y: y_min - r,
+                    width: rect_width,
+                    height: rect_height,
+                    rounded: Some(r),
+                    stroke: Some(stroke.clone()),
                     fill: None,
                     group: Some("stirrup".to_string()),
                 });
-                // Inner contour (hole) with semicircular hooks
-                let mut inner_pts = Vec::new();
-                inner_pts.extend(arc_points((x - r, y_min - hook), hook, 0.0, std::f64::consts::PI, 8));
-                inner_pts.push((x - r, y_min));
-                inner_pts.push((x - r, y_max));
-                inner_pts.extend(arc_points((x - r, y_max + hook), hook, std::f64::consts::PI, 2.0 * std::f64::consts::PI, 8));
-                d.add(Primitive::Path {
-                    points: inner_pts,
-                    closed: false,
-                    stroke: Some(stirrup_stroke.clone()),
-                    fill: None,
-                    group: Some("stirrup".to_string()),
-                });
+                // Interior capsule (hole)
+                if r > w {
+                    d.add(Primitive::Rect {
+                        x: x - r + w,
+                        y: y_min - r + w,
+                        width: rect_width - 2.0 * w,
+                        height: rect_height - 2.0 * w,
+                        rounded: Some(r - w),
+                        stroke: Some(stroke.clone()),
+                        fill: None,
+                        group: Some("stirrup".to_string()),
+                    });
+                }
             }
         }
     }
