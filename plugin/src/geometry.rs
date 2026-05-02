@@ -223,6 +223,19 @@ fn stirrup_outline_stroke(settings: &GlobalSettings, color: String) -> Stroke {
     }
 }
 
+/// Generate points for a semicircular arc.
+/// `center` is the arc center, `radius` the arc radius.
+/// `start_angle` and `end_angle` are in radians.
+fn arc_points(center: (f64, f64), radius: f64, start_angle: f64, end_angle: f64, segments: usize) -> Vec<(f64, f64)> {
+    let mut pts = Vec::with_capacity(segments + 1);
+    for i in 0..=segments {
+        let t = i as f64 / segments as f64;
+        let angle = start_angle + t * (end_angle - start_angle);
+        pts.push((center.0 + radius * angle.cos(), center.1 + radius * angle.sin()));
+    }
+    pts
+}
+
 fn rebar_visual(settings: &GlobalSettings, bar_color: String) -> (Stroke, Option<String>) {
     match settings.style {
         StylePreset::Spd => (
@@ -249,28 +262,6 @@ fn rebar_visual(settings: &GlobalSettings, bar_color: String) -> (Stroke, Option
                     },
                     Some(bar_color),
                 )
-            }
-        }
-    }
-}
-
-fn rebar_line_stroke(settings: &GlobalSettings, bar_color: String, width: f64) -> Stroke {
-    match settings.style {
-        StylePreset::Spd => Stroke {
-            color: "black".to_string(),
-            width,
-        },
-        StylePreset::Default => {
-            if settings.monochrome {
-                Stroke {
-                    color: "black".to_string(),
-                    width,
-                }
-            } else {
-                Stroke {
-                    color: bar_color,
-                    width,
-                }
             }
         }
     }
@@ -755,11 +746,22 @@ fn generate_longitudinal_drawing(
             unique_x.sort_by(|a, b| a.partial_cmp(b).unwrap());
             unique_x.dedup_by(|a, b| (*a - *b).abs() < 0.1);
 
+            let bar_r = bar_thickness / 2.0;
+            let bar_stroke = stirrup_outline_stroke(settings, bar_color.clone());
             for x_pos in &unique_x {
+                // Outer contour
                 d.add(Primitive::Path {
-                    points: vec![(*x_pos, cover), (*x_pos, span - cover)],
+                    points: vec![(*x_pos + bar_r, cover), (*x_pos + bar_r, span - cover)],
                     closed: false,
-                    stroke: Some(rebar_line_stroke(settings, bar_color.clone(), bar_thickness)),
+                    stroke: Some(bar_stroke.clone()),
+                    fill: None,
+                    group: Some("rebar".to_string()),
+                });
+                // Inner contour (hole)
+                d.add(Primitive::Path {
+                    points: vec![(*x_pos - bar_r, cover), (*x_pos - bar_r, span - cover)],
+                    closed: false,
+                    stroke: Some(bar_stroke.clone()),
                     fill: None,
                     group: Some("rebar".to_string()),
                 });
@@ -802,31 +804,34 @@ fn generate_longitudinal_drawing(
             let x_max = width / 2.0 - cover - tie_thickness / 2.0;
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
-            let hook = tie_thickness * 2.0; // 90-degree hook length
+            let hook = tie_thickness * 2.0; // hook radius
             let stirrup_stroke = stirrup_outline_stroke(settings, tie_color.clone());
             let r = tie_thickness / 2.0;
             for y in positions {
-                // Outer contour
+                // Outer contour with semicircular hooks
+                let mut outer_pts = Vec::new();
+                // left hook (opening left)
+                outer_pts.extend(arc_points((x_min - hook, y + r), hook, -std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2, 8));
+                // straight segment
+                outer_pts.push((x_min, y + r));
+                outer_pts.push((x_max, y + r));
+                // right hook (opening right)
+                outer_pts.extend(arc_points((x_max + hook, y + r), hook, std::f64::consts::FRAC_PI_2, 3.0 * std::f64::consts::FRAC_PI_2, 8));
                 d.add(Primitive::Path {
-                    points: vec![
-                        (x_min - hook, y + r),
-                        (x_min, y + r),
-                        (x_max, y + r),
-                        (x_max + hook, y + r),
-                    ],
+                    points: outer_pts,
                     closed: false,
                     stroke: Some(stirrup_stroke.clone()),
                     fill: None,
                     group: Some("stirrup".to_string()),
                 });
-                // Inner contour (hole)
+                // Inner contour (hole) with semicircular hooks
+                let mut inner_pts = Vec::new();
+                inner_pts.extend(arc_points((x_min - hook, y - r), hook, -std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2, 8));
+                inner_pts.push((x_min, y - r));
+                inner_pts.push((x_max, y - r));
+                inner_pts.extend(arc_points((x_max + hook, y - r), hook, std::f64::consts::FRAC_PI_2, 3.0 * std::f64::consts::FRAC_PI_2, 8));
                 d.add(Primitive::Path {
-                    points: vec![
-                        (x_min - hook, y - r),
-                        (x_min, y - r),
-                        (x_max, y - r),
-                        (x_max + hook, y - r),
-                    ],
+                    points: inner_pts,
                     closed: false,
                     stroke: Some(stirrup_stroke.clone()),
                     fill: None,
@@ -863,11 +868,22 @@ fn generate_longitudinal_drawing(
             unique_y.sort_by(|a, b| a.partial_cmp(b).unwrap());
             unique_y.dedup_by(|a, b| (*a - *b).abs() < 0.1);
 
+            let bar_r = bar_thickness / 2.0;
+            let bar_stroke = stirrup_outline_stroke(settings, bar_color.clone());
             for y_pos in &unique_y {
+                // Outer contour
                 d.add(Primitive::Path {
-                    points: vec![(cover, *y_pos), (span - cover, *y_pos)],
+                    points: vec![(cover, *y_pos + bar_r), (span - cover, *y_pos + bar_r)],
                     closed: false,
-                    stroke: Some(rebar_line_stroke(settings, bar_color.clone(), bar_thickness)),
+                    stroke: Some(bar_stroke.clone()),
+                    fill: None,
+                    group: Some("rebar".to_string()),
+                });
+                // Inner contour (hole)
+                d.add(Primitive::Path {
+                    points: vec![(cover, *y_pos - bar_r), (span - cover, *y_pos - bar_r)],
+                    closed: false,
+                    stroke: Some(bar_stroke.clone()),
                     fill: None,
                     group: Some("rebar".to_string()),
                 });
@@ -906,31 +922,34 @@ fn generate_longitudinal_drawing(
             let y_max = height / 2.0 - cover - tie_thickness / 2.0;
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
-            let hook = tie_thickness * 2.0; // 90-degree hook length
+            let hook = tie_thickness * 2.0; // hook radius
             let stirrup_stroke = stirrup_outline_stroke(settings, tie_color.clone());
             let r = tie_thickness / 2.0;
             for x in positions {
-                // Outer contour
+                // Outer contour with semicircular hooks
+                let mut outer_pts = Vec::new();
+                // bottom hook (opening down)
+                outer_pts.extend(arc_points((x + r, y_min - hook), hook, 0.0, std::f64::consts::PI, 8));
+                // straight segment
+                outer_pts.push((x + r, y_min));
+                outer_pts.push((x + r, y_max));
+                // top hook (opening up)
+                outer_pts.extend(arc_points((x + r, y_max + hook), hook, std::f64::consts::PI, 2.0 * std::f64::consts::PI, 8));
                 d.add(Primitive::Path {
-                    points: vec![
-                        (x + r, y_min - hook), // bottom hook
-                        (x + r, y_min),
-                        (x + r, y_max),
-                        (x + r, y_max + hook), // top hook
-                    ],
+                    points: outer_pts,
                     closed: false,
                     stroke: Some(stirrup_stroke.clone()),
                     fill: None,
                     group: Some("stirrup".to_string()),
                 });
-                // Inner contour (hole)
+                // Inner contour (hole) with semicircular hooks
+                let mut inner_pts = Vec::new();
+                inner_pts.extend(arc_points((x - r, y_min - hook), hook, 0.0, std::f64::consts::PI, 8));
+                inner_pts.push((x - r, y_min));
+                inner_pts.push((x - r, y_max));
+                inner_pts.extend(arc_points((x - r, y_max + hook), hook, std::f64::consts::PI, 2.0 * std::f64::consts::PI, 8));
                 d.add(Primitive::Path {
-                    points: vec![
-                        (x - r, y_min - hook), // bottom hook
-                        (x - r, y_min),
-                        (x - r, y_max),
-                        (x - r, y_max + hook), // top hook
-                    ],
+                    points: inner_pts,
                     closed: false,
                     stroke: Some(stirrup_stroke.clone()),
                     fill: None,
