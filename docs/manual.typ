@@ -221,6 +221,43 @@ section "V-101":
     top 3 #6
 ```
 
+=== Estilo de dibujo
+Permite escoger un preset visual para controlar jerarquía de líneas, rellenos y apariencia general.
+
+```
+style <preset>
+```
+
+Presets soportados:
+
+#table(
+  columns: (1fr, 3fr),
+  [`default`], [Estilo actual con colores por diámetro y presentación expresiva],
+  [`spd`], [Estilo técnico monocromático inspirado en documentación estructural tipo SPD/ISO: líneas negras, jerarquía sobria y aceros sin relleno],
+)
+
+`style "spd"` activa una salida más profesional para memorias y planos:
+- concreto en negro con contorno principal más fuerte,
+- estribos como anillo hueco con doble contorno,
+- aceros longitudinales en negro sin relleno,
+- linework más sobrio para impresión.
+
+*Ejemplo:*
+```rcs
+set:
+    style "spd"
+    scale 1:25
+
+section "V-SPD":
+    shape rect 30 50
+    concrete:
+        cover 4
+    top 2 #8 1 #6
+    bot 3 #8
+    ties #3 1@5 4@10 rto@20
+    view both
+```
+
 === Dimensiones
 Habilita la gráfica de las cotas para las dimensiones de la sección.
 
@@ -333,6 +370,8 @@ _Ejemplo: `1@5 4@10 rto@20`_
 #example("../examples/circular.rcs", caption: "Muro")
 
 #example("../examples/longitudinal.rcs", caption: "Viga con vista longitudinal", wide: true)
+
+#example("../examples/spd.rcs", caption: "Preset técnico profesional SPD", wide: true)
 
 = Propuestas de evolución del lenguaje
 

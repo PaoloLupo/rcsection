@@ -15,6 +15,7 @@ Node: AstNode = {
 
 GlobalProperty: GlobalProperty = {
     "unit" <s:StringLiteral> => GlobalProperty::Unit(s),
+    "style" <s:StringLiteral> => GlobalProperty::Style(s),
     "scale" <n:Num> => GlobalProperty::Scale(n),
     "scale" <n:Num> ":" <m:Num> => GlobalProperty::Scale(n / m),
     "stroke" <c:StringLiteral> <w:Num> => GlobalProperty::Stroke(StrokeConfig { color: c, width: w }),
@@ -164,7 +165,7 @@ match {
     r"\s*" => {},
     r"//[^\n\r]*[\n\r]*" => {},
     "set", "section", "drawing", "view", "shape", "concrete", "rebar", "ties",
-    "unit", "scale", "stroke", "font", "cover", "fc", "monochrome", "color",
+    "unit", "style", "scale", "stroke", "font", "cover", "fc", "monochrome", "color",
     "rect", "circle", "line", "label", "dim", "at", "to", "rounded", "callout", "legend",
     "top", "bot", "sides", "perim", "grid", "uniform", "polygon",
     "longitudinal", "both", "elevation",

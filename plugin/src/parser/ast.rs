@@ -21,6 +21,7 @@ pub enum GlobalProperty {
     Font(FontConfig),
     Cover(f64),
     Monochrome(bool),
+    Style(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

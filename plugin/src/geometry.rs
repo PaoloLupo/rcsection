@@ -114,6 +114,12 @@ pub fn generate(nodes: &[ast::AstNode]) -> Vec<Drawing> {
                         ast::GlobalProperty::Unit(u) => {
                             global_settings.unit_factor = parse_unit_factor(u);
                         }
+                        ast::GlobalProperty::Style(s) => {
+                            global_settings.style = parse_style_preset(s);
+                            if global_settings.style == StylePreset::Spd {
+                                global_settings.monochrome = true;
+                            }
+                        }
                         ast::GlobalProperty::Monochrome(m) => {
                             global_settings.monochrome = *m;
                         }
@@ -144,6 +150,13 @@ struct GlobalSettings {
     stroke: Option<Stroke>,
     unit_factor: f64,
     monochrome: bool,
+    style: StylePreset,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StylePreset {
+    Default,
+    Spd,
 }
 
 impl Default for GlobalSettings {
@@ -154,6 +167,87 @@ impl Default for GlobalSettings {
             stroke: None,
             unit_factor: 1.0,
             monochrome: false,
+            style: StylePreset::Default,
+        }
+    }
+}
+
+fn parse_style_preset(style: &str) -> StylePreset {
+    match style.to_lowercase().as_str() {
+        "spd" | "gost" | "tech" | "technical" | "professional" => StylePreset::Spd,
+        _ => StylePreset::Default,
+    }
+}
+
+fn concrete_stroke(settings: &GlobalSettings) -> Stroke {
+    match settings.style {
+        StylePreset::Spd => Stroke {
+            color: "black".to_string(),
+            width: 0.12,
+        },
+        StylePreset::Default => Stroke {
+            color: "black".to_string(),
+            width: 0.08,
+        },
+    }
+}
+
+fn stirrup_outline_stroke(settings: &GlobalSettings, color: String) -> Stroke {
+    match settings.style {
+        StylePreset::Spd => Stroke { color, width: 0.05 },
+        StylePreset::Default => Stroke { color, width: 0.03 },
+    }
+}
+
+fn rebar_visual(settings: &GlobalSettings, bar_color: String) -> (Stroke, Option<String>) {
+    match settings.style {
+        StylePreset::Spd => (
+            Stroke {
+                color: "black".to_string(),
+                width: 0.06,
+            },
+            None,
+        ),
+        StylePreset::Default => {
+            if settings.monochrome {
+                (
+                    Stroke {
+                        color: "black".to_string(),
+                        width: 0.05,
+                    },
+                    None,
+                )
+            } else {
+                (
+                    Stroke {
+                        color: bar_color.clone(),
+                        width: 0.05,
+                    },
+                    Some(bar_color),
+                )
+            }
+        }
+    }
+}
+
+fn rebar_line_stroke(settings: &GlobalSettings, bar_color: String, width: f64) -> Stroke {
+    match settings.style {
+        StylePreset::Spd => Stroke {
+            color: "black".to_string(),
+            width: 0.08,
+        },
+        StylePreset::Default => {
+            if settings.monochrome {
+                Stroke {
+                    color: "black".to_string(),
+                    width: 0.08,
+                }
+            } else {
+                Stroke {
+                    color: bar_color,
+                    width,
+                }
+            }
         }
     }
 }
@@ -320,10 +414,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                         width: *width,
                         height: *height,
                         rounded: None,
-                        stroke: Some(Stroke {
-                            color: "black".to_string(),
-                            width: 0.08, // 0.8mm in real life
-                        }),
+                        stroke: Some(concrete_stroke(settings)),
                         fill: None,
                         group: Some("concrete".to_string()),
                     });
@@ -333,10 +424,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                         x: 0.0,
                         y: 0.0,
                         radius: diameter / 2.0,
-                        stroke: Some(Stroke {
-                            color: "black".to_string(),
-                            width: 0.08,
-                        }),
+                        stroke: Some(concrete_stroke(settings)),
                         fill: None,
                         group: Some("concrete".to_string()),
                     });
@@ -345,10 +433,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                     d.add(Primitive::Path {
                         points: points.clone(),
                         closed: true,
-                        stroke: Some(Stroke {
-                            color: "black".to_string(),
-                            width: 0.08,
-                        }),
+                        stroke: Some(concrete_stroke(settings)),
                         fill: None,
                         group: Some("concrete".to_string()),
                     });
@@ -358,7 +443,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
 
         // Add stirrup in section view
         if let Some(ties) = &props.ties {
-            let tie_color = if settings.monochrome {
+            let tie_color = if settings.monochrome || settings.style == StylePreset::Spd {
                 "black".to_string()
             } else {
                 get_color_for_size(&ties.size)
@@ -368,10 +453,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
             if let Some(shape) = &props.shape {
                 match shape {
                     ast::Shape::Rect { width, height } => {
-                        let outline = Stroke {
-                            color: tie_color.clone(),
-                            width: 0.03,
-                        };
+                        let outline = stirrup_outline_stroke(settings, tie_color.clone());
                         // Outer contour of stirrup
                         d.add(Primitive::Rect {
                             x: -width / 2.0 + cover,
@@ -396,10 +478,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                         });
                     }
                     ast::Shape::Circle { diameter } => {
-                        let outline = Stroke {
-                            color: tie_color.clone(),
-                            width: 0.03,
-                        };
+                        let outline = stirrup_outline_stroke(settings, tie_color.clone());
                         // Outer contour
                         d.add(Primitive::Circle {
                             x: 0.0,
@@ -447,21 +526,13 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                     .get(i)
                     .cloned()
                     .unwrap_or((1.0, "black".to_string()));
-
-                let (stroke_color, fill_color) = if settings.monochrome {
-                    ("black".to_string(), None)
-                } else {
-                    (color.clone(), Some(color))
-                };
+                let (stroke, fill_color) = rebar_visual(settings, color);
 
                 d.add(Primitive::Circle {
                     x: *x,
                     y: *y,
                     radius,
-                    stroke: Some(Stroke {
-                        color: stroke_color,
-                        width: 0.05,
-                    }),
+                    stroke: Some(stroke),
                     fill: fill_color,
                     group: Some("rebar".to_string()),
                 });
@@ -622,10 +693,7 @@ fn generate_longitudinal_drawing(
             width,
             height: span,
             rounded: None,
-            stroke: Some(Stroke {
-                color: "black".to_string(),
-                width: 1.0,
-            }),
+            stroke: Some(concrete_stroke(settings)),
             fill: None,
             group: Some("concrete".to_string()),
         });
@@ -651,10 +719,7 @@ fn generate_longitudinal_drawing(
                 d.add(Primitive::Path {
                     points: vec![(*x_pos, cover), (*x_pos, span - cover)],
                     closed: false,
-                    stroke: Some(Stroke {
-                        color: bar_color.clone(),
-                        width: bar_thickness,
-                    }),
+                    stroke: Some(rebar_line_stroke(settings, bar_color.clone(), bar_thickness)),
                     fill: None,
                     group: Some("rebar".to_string()),
                 });
@@ -687,7 +752,11 @@ fn generate_longitudinal_drawing(
 
         // Stirrups
         if let Some(ties) = &props.ties {
-            let tie_color = get_color_for_size(&ties.size);
+            let tie_color = if settings.monochrome || settings.style == StylePreset::Spd {
+                "black".to_string()
+            } else {
+                get_color_for_size(&ties.size)
+            };
             let tie_thickness = parse_size(&ties.size);
             let x_min = -width / 2.0 + cover + tie_thickness / 2.0;
             let x_max = width / 2.0 - cover - tie_thickness / 2.0;
@@ -697,10 +766,7 @@ fn generate_longitudinal_drawing(
                 d.add(Primitive::Path {
                     points: vec![(x_min, y), (x_max, y)],
                     closed: false,
-                    stroke: Some(Stroke {
-                        color: tie_color.clone(),
-                        width: 0.03,
-                    }),
+                    stroke: Some(stirrup_outline_stroke(settings, tie_color.clone())),
                     fill: None,
                     group: Some("stirrup".to_string()),
                 });
@@ -714,10 +780,7 @@ fn generate_longitudinal_drawing(
             width: span,
             height,
             rounded: None,
-            stroke: Some(Stroke {
-                color: "black".to_string(),
-                width: 1.0,
-            }),
+            stroke: Some(concrete_stroke(settings)),
             fill: None,
             group: Some("concrete".to_string()),
         });
@@ -742,10 +805,7 @@ fn generate_longitudinal_drawing(
                 d.add(Primitive::Path {
                     points: vec![(cover, *y_pos), (span - cover, *y_pos)],
                     closed: false,
-                    stroke: Some(Stroke {
-                        color: bar_color.clone(),
-                        width: bar_thickness,
-                    }),
+                    stroke: Some(rebar_line_stroke(settings, bar_color.clone(), bar_thickness)),
                     fill: None,
                     group: Some("rebar".to_string()),
                 });
@@ -774,7 +834,11 @@ fn generate_longitudinal_drawing(
         }
 
         if let Some(ties) = &props.ties {
-            let tie_color = get_color_for_size(&ties.size);
+            let tie_color = if settings.monochrome || settings.style == StylePreset::Spd {
+                "black".to_string()
+            } else {
+                get_color_for_size(&ties.size)
+            };
             let tie_thickness = parse_size(&ties.size);
             let y_min = -height / 2.0 + cover + tie_thickness / 2.0;
             let y_max = height / 2.0 - cover - tie_thickness / 2.0;
@@ -784,10 +848,7 @@ fn generate_longitudinal_drawing(
                 d.add(Primitive::Path {
                     points: vec![(x, y_min), (x, y_max)],
                     closed: false,
-                    stroke: Some(Stroke {
-                        color: tie_color.clone(),
-                        width: 0.03,
-                    }),
+                    stroke: Some(stirrup_outline_stroke(settings, tie_color.clone())),
                     fill: None,
                     group: Some("stirrup".to_string()),
                 });
@@ -1246,6 +1307,7 @@ mod tests {
             stroke: None,
             unit_factor: 1.0,
             monochrome: false,
+            style: StylePreset::Default,
         };
         assert_eq!(get_cover(&props, &settings), 5.0);
     }
@@ -1266,6 +1328,7 @@ mod tests {
             stroke: None,
             unit_factor: 1.0,
             monochrome: false,
+            style: StylePreset::Default,
         };
         assert_eq!(get_cover(&props, &settings), 4.0);
     }
@@ -1289,6 +1352,7 @@ mod tests {
             stroke: None,
             unit_factor: 1.0,
             monochrome: false,
+            style: StylePreset::Default,
         };
         assert_eq!(get_cover(&props, &settings), 2.5);
     }
@@ -1312,6 +1376,7 @@ mod tests {
             stroke: None,
             unit_factor: 0.1,
             monochrome: false,
+            style: StylePreset::Default,
         };
         assert_eq!(get_cover(&props, &settings), 4.0);
     }
@@ -1354,6 +1419,16 @@ mod tests {
         assert_eq!(apply_unit(10.0, 1.0), 10.0);
         assert_eq!(apply_unit(10.0, 0.1), 1.0);
         assert_eq!(apply_unit(10.0, 100.0), 1000.0);
+    }
+
+    #[test]
+    fn test_parse_style_preset() {
+        assert!(matches!(parse_style_preset("spd"), StylePreset::Spd));
+        assert!(matches!(
+            parse_style_preset("professional"),
+            StylePreset::Spd
+        ));
+        assert!(matches!(parse_style_preset("default"), StylePreset::Default));
     }
 
     #[test]

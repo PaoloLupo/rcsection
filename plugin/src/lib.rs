@@ -75,6 +75,8 @@ mod tests {
         let input = r#"
             set:
                 unit "cm"
+                style "spd"
+                monochrome
                 scale 1:20
                 cover 4
         "#;
