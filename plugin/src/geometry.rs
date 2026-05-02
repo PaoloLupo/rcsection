@@ -376,7 +376,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                             rounded: Some(bend_radius),
                             stroke: Some(Stroke {
                                 color: tie_color,
-                                width: tie_thickness, // Provided in CM, draw.typ will scale
+                                width: 0.03, // thin line, not bar diameter
                             }),
                             fill: None,
                             group: Some("stirrup".to_string()),
@@ -389,7 +389,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                             radius: diameter / 2.0 - cover - tie_thickness / 2.0,
                             stroke: Some(Stroke {
                                 color: tie_color,
-                                width: tie_thickness,
+                                width: 0.03,
                             }),
                             fill: None,
                             group: Some("stirrup".to_string()),
@@ -675,7 +675,7 @@ fn generate_longitudinal_drawing(
                     closed: false,
                     stroke: Some(Stroke {
                         color: tie_color.clone(),
-                        width: tie_thickness,
+                        width: 0.03,
                     }),
                     fill: None,
                     group: Some("stirrup".to_string()),
@@ -762,7 +762,7 @@ fn generate_longitudinal_drawing(
                     closed: false,
                     stroke: Some(Stroke {
                         color: tie_color.clone(),
-                        width: tie_thickness,
+                        width: 0.03,
                     }),
                     fill: None,
                     group: Some("stirrup".to_string()),
