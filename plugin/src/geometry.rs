@@ -103,7 +103,18 @@ pub fn generate(nodes: &[ast::AstNode]) -> Vec<Drawing> {
             ast::AstNode::Set(set) => {
                 for prop in &set.properties {
                     match prop {
-                        ast::GlobalProperty::Scale(s) => global_settings.scale = Some(*s),
+                        ast::GlobalProperty::Scale(view, s) => {
+                            match view.as_deref() {
+                                Some("section") => global_settings.scale_section = Some(*s),
+                                Some("longitudinal") => global_settings.scale_longitudinal = Some(*s),
+                                Some("elevation") => global_settings.scale_elevation = Some(*s),
+                                _ => {
+                                    global_settings.scale_section = Some(*s);
+                                    global_settings.scale_longitudinal = Some(*s);
+                                    global_settings.scale_elevation = Some(*s);
+                                }
+                            }
+                        }
                         ast::GlobalProperty::Cover(c) => global_settings.cover = *c,
                         ast::GlobalProperty::Stroke(s) => {
                             global_settings.stroke = Some(Stroke {
@@ -145,7 +156,9 @@ pub fn generate(nodes: &[ast::AstNode]) -> Vec<Drawing> {
 }
 
 struct GlobalSettings {
-    scale: Option<f64>,
+    scale_section: Option<f64>,
+    scale_longitudinal: Option<f64>,
+    scale_elevation: Option<f64>,
     cover: f64,
     stroke: Option<Stroke>,
     unit_factor: f64,
@@ -162,13 +175,24 @@ enum StylePreset {
 impl Default for GlobalSettings {
     fn default() -> Self {
         Self {
-            scale: None,
+            scale_section: None,
+            scale_longitudinal: None,
+            scale_elevation: None,
             cover: 0.0,
             stroke: None,
             unit_factor: 1.0,
             monochrome: true,
             style: StylePreset::Spd,
         }
+    }
+}
+
+fn get_scale(settings: &GlobalSettings, view: &str) -> Option<f64> {
+    match view {
+        "section" => settings.scale_section,
+        "longitudinal" => settings.scale_longitudinal,
+        "elevation" => settings.scale_elevation,
+        _ => settings.scale_section,
     }
 }
 
@@ -415,7 +439,7 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
         let mut d = Drawing::new();
         d.id = Some(section.id.clone());
         d.view = Some("section".to_string());
-        d.scale = settings.scale;
+        d.scale = get_scale(settings, "section");
 
         if let Some(shape) = &props.shape {
             match shape {
@@ -692,7 +716,7 @@ fn generate_longitudinal_drawing(
         if is_vertical { "Elev." } else { "Long." }
     ));
     d.view = Some(view_name.to_string());
-    d.scale = settings.scale;
+    d.scale = get_scale(settings, view_name);
 
     let (width, height) = get_section_dims(&props.shape, settings.unit_factor);
     let cover = get_cover(props, settings);
@@ -1328,7 +1352,9 @@ mod tests {
             length: None,
         };
         let settings = GlobalSettings {
-            scale: None,
+            scale_section: None,
+            scale_longitudinal: None,
+            scale_elevation: None,
             cover: 4.0,
             stroke: None,
             unit_factor: 1.0,
@@ -1349,7 +1375,9 @@ mod tests {
             length: None,
         };
         let settings = GlobalSettings {
-            scale: None,
+            scale_section: None,
+            scale_longitudinal: None,
+            scale_elevation: None,
             cover: 4.0,
             stroke: None,
             unit_factor: 1.0,
@@ -1373,7 +1401,9 @@ mod tests {
             length: None,
         };
         let settings = GlobalSettings {
-            scale: None,
+            scale_section: None,
+            scale_longitudinal: None,
+            scale_elevation: None,
             cover: 0.5,
             stroke: None,
             unit_factor: 1.0,
@@ -1397,7 +1427,9 @@ mod tests {
             length: None,
         };
         let settings = GlobalSettings {
-            scale: None,
+            scale_section: None,
+            scale_longitudinal: None,
+            scale_elevation: None,
             cover: 40.0,
             stroke: None,
             unit_factor: 0.1,

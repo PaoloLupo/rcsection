@@ -226,12 +226,42 @@ set:
 ```
 
 === Escala de dibujo
-Define la escala de dibujo para los tipos de vista. Se representa como una relación.
+Define la escala de dibujo. Puede aplicarse globalmente (todas las vistas) o por tipo de vista.
 
 ```
-scale <vista> <valor>
+scale <valor>            // todas las vistas
+scale <vista> <valor>    // solo una vista
 ```
+
+Vistas disponibles:
+
+#table(
+  columns: (1fr, 3fr),
+  [`section`], [Vista de sección transversal],
+  [`longitudinal`], [Vista longitudinal (vigas)],
+  [`elevation`], [Vista de elevación (columnas/muros)],
+)
+
 _Valor por defecto: `1:20`_
+
+Esto es útil cuando una vista longitudinal o de elevación es muy alargada y desbordaría la página: se puede asignar una escala más pequeña solo a esa vista.
+
+*Ejemplo:*
+```rcs
+set:
+    unit "mm"
+    scale section 1:10
+    scale longitudinal 1:25
+
+beam "V-101":
+    shape rect 300 600   // 30 cm x 60 cm
+    cover 40             // 4 cm
+    top 3 #6
+    length 6000
+    longitudinal:
+        bottom 4 #6
+        stirrup #3 @150
+```
 
 === Unidades
 Define la unidad de longitud para todas las dimensiones de la sección. El motor interno trabaja en centímetros, por lo que los valores son convertidos automáticamente.
@@ -257,7 +287,7 @@ set:
     unit "mm"
     scale 1:50
 
-section "V-101":
+beam "V-101":
     shape rect 300 600   // 30 cm x 60 cm
     cover 40             // 4 cm
     top 3 #6

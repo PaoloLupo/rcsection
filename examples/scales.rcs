@@ -1,0 +1,20 @@
+beam "V-Scale" 350x500
+set:
+    unit "mm"
+    scale section 1:10
+    scale longitudinal 1:20
+concrete:
+    cover 25
+rebar:
+    top    3#8
+    bottom 4#8
+    left   2#5
+    right  2#5
+stirrup:
+    #3 @100
+length:
+    6000
+longitudinal:
+    top    3#8
+    bottom 4#8
+    stirrup #3 @150

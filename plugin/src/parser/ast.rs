@@ -16,7 +16,7 @@ pub struct SetBlock {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum GlobalProperty {
     Unit(String),
-    Scale(f64),
+    Scale(Option<String>, f64),
     Stroke(StrokeConfig),
     Font(FontConfig),
     Cover(f64),
