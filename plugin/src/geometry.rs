@@ -466,12 +466,14 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                             group: Some("stirrup".to_string()),
                         });
                         // Inner contour of stirrup (hole)
+                        // Radius must shrink by thickness for concentric arcs
+                        let inner_radius = (bend_radius - tie_thickness).max(0.0);
                         d.add(Primitive::Rect {
                             x: -width / 2.0 + cover + tie_thickness,
                             y: -height / 2.0 + cover + tie_thickness,
                             width: width - 2.0 * cover - 2.0 * tie_thickness,
                             height: height - 2.0 * cover - 2.0 * tie_thickness,
-                            rounded: Some(bend_radius.max(0.0)),
+                            rounded: Some(inner_radius),
                             stroke: Some(outline),
                             fill: None,
                             group: Some("stirrup".to_string()),
@@ -762,9 +764,15 @@ fn generate_longitudinal_drawing(
             let x_max = width / 2.0 - cover - tie_thickness / 2.0;
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
+            let hook = tie_thickness * 2.0; // 90-degree hook length
             for y in positions {
                 d.add(Primitive::Path {
-                    points: vec![(x_min, y), (x_max, y)],
+                    points: vec![
+                        (x_min - hook, y), // left hook
+                        (x_min, y),
+                        (x_max, y),
+                        (x_max + hook, y), // right hook
+                    ],
                     closed: false,
                     stroke: Some(stirrup_outline_stroke(settings, tie_color.clone())),
                     fill: None,
@@ -844,9 +852,15 @@ fn generate_longitudinal_drawing(
             let y_max = height / 2.0 - cover - tie_thickness / 2.0;
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
+            let hook = tie_thickness * 2.0; // 90-degree hook length
             for x in positions {
                 d.add(Primitive::Path {
-                    points: vec![(x, y_min), (x, y_max)],
+                    points: vec![
+                        (x, y_min - hook), // bottom hook
+                        (x, y_min),
+                        (x, y_max),
+                        (x, y_max + hook), // top hook
+                    ],
                     closed: false,
                     stroke: Some(stirrup_outline_stroke(settings, tie_color.clone())),
                     fill: None,
