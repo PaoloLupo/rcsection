@@ -166,8 +166,8 @@ impl Default for GlobalSettings {
             cover: 0.0,
             stroke: None,
             unit_factor: 1.0,
-            monochrome: false,
-            style: StylePreset::Default,
+            monochrome: true,
+            style: StylePreset::Spd,
         }
     }
 }
