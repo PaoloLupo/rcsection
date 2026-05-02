@@ -3,6 +3,7 @@ use lalrpop_util::lalrpop_mod;
 
 lalrpop_mod!(
     #[allow(clippy::all)]
+    #[allow(unused_imports)]
     grammar,
     "/parser/grammar.rs"
 );
@@ -37,7 +38,7 @@ fn preprocess(input: &str) -> String {
             indent_stack.push(indent + 1); // Any increase in indent works
         } else {
             output.push_str(trimmed);
-            output.push_str("\n");
+            output.push('\n');
         }
     }
 
