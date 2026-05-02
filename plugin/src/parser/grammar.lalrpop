@@ -9,7 +9,10 @@ pub Sections: Vec<AstNode> = {
 
 Node: AstNode = {
     "set" ":" "{" <props:GlobalProperty*> "}" => AstNode::Set(SetBlock { properties: props }),
-    "section" <id:StringLiteral> ":" "{" <props:SectionProperties> "}" => AstNode::Section(Section { id, properties: props }),
+    "section" <id:StringLiteral> ":" "{" <props:SectionProperties> "}" => AstNode::Section(Section { kind: SectionKind::Beam, id, properties: props }),
+    "beam"    <id:StringLiteral> ":" "{" <props:SectionProperties> "}" => AstNode::Section(Section { kind: SectionKind::Beam, id, properties: props }),
+    "column"  <id:StringLiteral> ":" "{" <props:SectionProperties> "}" => AstNode::Section(Section { kind: SectionKind::Column, id, properties: props }),
+    "wall"    <id:StringLiteral> ":" "{" <props:SectionProperties> "}" => AstNode::Section(Section { kind: SectionKind::Wall, id, properties: props }),
     "drawing" <id:StringLiteral> ":" "{" <els:DrawingElement*> "}" => AstNode::Drawing(DrawingBlock { id, elements: els }),
 };
 
@@ -164,7 +167,7 @@ RebarSize: String = {
 match {
     r"\s*" => {},
     r"//[^\n\r]*[\n\r]*" => {},
-    "set", "section", "drawing", "view", "shape", "concrete", "rebar", "ties",
+    "set", "section", "beam", "column", "wall", "drawing", "view", "shape", "concrete", "rebar", "ties",
     "unit", "style", "scale", "stroke", "font", "cover", "fc", "monochrome", "color",
     "rect", "circle", "line", "label", "dim", "at", "to", "rounded", "callout", "legend",
     "top", "bot", "sides", "perim", "grid", "uniform", "polygon",

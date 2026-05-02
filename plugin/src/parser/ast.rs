@@ -39,7 +39,15 @@ pub struct FontConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Section {
     pub id: String,
+    pub kind: SectionKind,
     pub properties: SectionProperties,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SectionKind {
+    Beam,
+    Column,
+    Wall,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -390,9 +390,21 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
     let props = &section.properties;
 
     // Determine which views to generate
+    // If no explicit view is set, infer from section kind
+    let (default_longitudinal, default_elevation) = match section.kind {
+        ast::SectionKind::Beam => (true, false),
+        ast::SectionKind::Column | ast::SectionKind::Wall => (false, true),
+    };
+
     let show_section = matches!(&props.view, Some(View::Section) | Some(View::Both) | None);
-    let show_longitudinal = matches!(&props.view, Some(View::Longitudinal) | Some(View::Both));
-    let show_elevation = matches!(&props.view, Some(View::Elevation) | Some(View::Both));
+    let show_longitudinal = match &props.view {
+        Some(View::Longitudinal) | Some(View::Both) => true,
+        _ => default_longitudinal,
+    };
+    let show_elevation = match &props.view {
+        Some(View::Elevation) | Some(View::Both) => true,
+        _ => default_elevation,
+    };
 
     // Get dimensions for both views
     let (width, height) = get_section_dims(&props.shape, settings.unit_factor);
