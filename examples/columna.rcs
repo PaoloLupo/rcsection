@@ -1,15 +1,13 @@
-section "C-Rect":
+column "C-Rect":
     shape rect 40 40
     concrete:
         cover 4
     perim 8 #6
-    view both
     ties #3 1@5 5@10 rto@20
 
-section "C-Circ":
+column "C-Circ":
     shape circle 40
     concrete:
         cover 4
     perim 8 #6
-    view both
     ties #3 1@5 5@10 rto@20

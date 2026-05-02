@@ -1,4 +1,4 @@
-section "V-102":
+beam "V-102":
     shape rect 30 40
     concrete:
         cover 4

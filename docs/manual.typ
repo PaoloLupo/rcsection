@@ -139,8 +139,27 @@ armado en Typst.
 + Agregar el siguiente código al inicio de tu archivo `.typ`:
 
 ```typ
-#import "@preview/rcsection:0.1.0"
+#import "@preview/rcsection:0.1.0": init_rcsection
+
+// Initialize the plugin
 #show: init_rcsection
+
+// Create a figure with a beam section
+#figure(
+  ````rcs
+  beam "V-101":
+      shape rect 30 50     // Dimensions: width x height
+      length 400           // Span length (for longitudinal view)
+      concrete:
+          cover 4          // Concrete cover
+
+      // Reinforcement
+      top 2 1"             // Top bars: count size
+      bot 3 1"             // Bottom bars: count size
+      ties 3/8" 1@15       // Stirrups: size spacing
+  ````,
+  caption: "Reinforced Concrete Beam Detail",
+)
 ```
 
 = Sintaxis
@@ -157,22 +176,45 @@ Podemos separar la sintaxis en dos partes:
 - La primera parte es la definición de las propiedades globales que se aplican a todas las secciones.
 - La segunda parte es la definición de cada sección.
 
-== Vista
+== Tipos de elemento
+
+El tipo de elemento determina la orientación de la vista longitudinal por defecto:
+
+#table(
+  columns: (1fr, 3fr),
+  [`beam`], [Viga — vista longitudinal horizontal],
+  [`column`], [Columna — vista de elevación vertical],
+  [`wall`], [Muro/placa — vista de elevación vertical],
+  [`section`], [Genérico (compatibilidad) — vista longitudinal horizontal],
+)
+
+== Vistas
+
 Las vistas soportadas son:
 
 #table(
   columns: (1fr, 3fr),
-  [`section`], [Vista de sección (corte) - _por defecto_],
-  [`longitudinal`], [Vista longitudinal (elevación lateral)],
-  [`both`], [Ambas vistas: corte y longitudinal],
+  [`section`], [Solo vista de sección (corte transversal)],
+  [`longitudinal`], [Solo vista longitudinal (para beams)],
+  [`elevation`], [Solo vista de elevación (para columns/walls)],
+  [`both`], [Ambas vistas: corte + longitudinal/elevación según el tipo],
 )
 
-Para especificar la vista en la nueva sintaxis v2:
+Si no se especifica `view`, el tipo de elemento determina la vista secundaria:
+- `beam` → genera vista longitudinal horizontal
+- `column` / `wall` → genera vista de elevación vertical
+- `section` → genera vista longitudinal horizontal
+
 ```rcs
-section "V-101":
+beam "V-101":
     shape rect 30 60
-    view both
     top 3 #6
+    // Sin view: muestra sección + longitudinal
+
+column "C-101":
+    shape rect 40 40
+    perim 8 #6
+    // Sin view: muestra sección + elevación
 ```
 
 == Propiedades globales
@@ -283,15 +325,7 @@ Los modos soportados son:
   [`both`], [Modos `callout` y `legend` activados],
 )
 
-== Tipos de secciones
-Para la definición del tipo de sección, son soportados:
 
-#table(
-  columns: (1fr, 3fr),
-  [`beam`], [Define una viga],
-  [`column`], [Define una columna],
-  [`wall`], [Define un muro/placa],
-)
 
 == Identificador
 Se refiere al nombre único que se le asigna a cada sección. Ejm: `"V-101"`
@@ -359,17 +393,31 @@ Es una secuencia separada por espacios
 
 _Ejemplo: `1@5 4@10 rto@20`_
 
-== Ejemplos
+== Ejemplos por tipo de elemento
 
 #show: init_rcsection
 
-#example("../examples/minimal.rcs", caption: "Viga peraltada")
+=== Vigas
 
-#example("../examples/columna.rcs", caption: "Columna")
+#example("../examples/minimal.rcs", caption: "Viga peraltada (sección + longitudinal)")
 
-#example("../examples/circular.rcs", caption: "Muro")
+#example("../examples/beam_section.rcs", caption: "Viga — solo sección")
 
-#example("../examples/longitudinal.rcs", caption: "Viga con vista longitudinal", wide: true)
+#example("../examples/beam_longitudinal.rcs", caption: "Viga — solo longitudinal", wide: true)
+
+=== Columnas
+
+#example("../examples/columna.rcs", caption: "Columna rectangular y circular (sección + elevación)")
+
+#example("../examples/column_section.rcs", caption: "Columna — solo sección")
+
+#example("../examples/column_elevation.rcs", caption: "Columna — solo elevación", wide: true)
+
+=== Otros ejemplos
+
+#example("../examples/circular.rcs", caption: "Columna circular")
+
+#example("../examples/longitudinal.rcs", caption: "Viga con longitud definida", wide: true)
 
 #example("../examples/spd.rcs", caption: "Preset técnico profesional SPD", wide: true)
 

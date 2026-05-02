@@ -1,4 +1,4 @@
-section "Fractional":
+beam "Fractional":
     shape rect 30 60
     concrete:
         cover 4

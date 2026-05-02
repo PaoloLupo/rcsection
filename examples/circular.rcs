@@ -1,4 +1,4 @@
-section "C-Circ":
+column "C-Circ":
     shape circle 50
     concrete:
         cover 4

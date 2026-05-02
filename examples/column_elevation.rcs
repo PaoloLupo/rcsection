@@ -1,0 +1,8 @@
+column "C-Elev":
+    shape rect 40 40
+    length 300
+    concrete:
+        cover 4
+    perim 8 #6
+    ties #3 1@5 4@10 rto@20
+    view elevation

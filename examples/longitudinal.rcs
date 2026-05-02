@@ -1,6 +1,5 @@
-section "V-101":
+beam "V-101":
     shape rect 30 60
-    view both
     length 150
     concrete:
         fc 210

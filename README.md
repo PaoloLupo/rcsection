@@ -29,9 +29,8 @@ To use `rcsection`, you need to initialize it with a show rule. Then you can wri
 // Create a figure with a beam section
 #figure(
   ```rcs
-  section "V-101":
+  beam "V-101":
       shape rect 30 50     // Dimensions: width x height
-      view both            // View: section, longitudinal, or both
       length 400           // Span length (for longitudinal view)
       concrete:
           cover 4          // Concrete cover
