@@ -803,6 +803,10 @@ fn generate_longitudinal_drawing(
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
             let hook = tie_thickness * 2.0; // 90-degree hook length
+            let stirrup_stroke = Stroke {
+                color: tie_color.clone(),
+                width: tie_thickness,
+            };
             for y in positions {
                 d.add(Primitive::Path {
                     points: vec![
@@ -812,7 +816,7 @@ fn generate_longitudinal_drawing(
                         (x_max + hook, y), // right hook
                     ],
                     closed: false,
-                    stroke: Some(stirrup_outline_stroke(settings, tie_color.clone())),
+                    stroke: Some(stirrup_stroke.clone()),
                     fill: None,
                     group: Some("stirrup".to_string()),
                 });
@@ -891,6 +895,10 @@ fn generate_longitudinal_drawing(
 
             let positions = calculate_longitudinal_spacings(span, cover, ties, settings.unit_factor);
             let hook = tie_thickness * 2.0; // 90-degree hook length
+            let stirrup_stroke = Stroke {
+                color: tie_color.clone(),
+                width: tie_thickness,
+            };
             for x in positions {
                 d.add(Primitive::Path {
                     points: vec![
@@ -900,7 +908,7 @@ fn generate_longitudinal_drawing(
                         (x, y_max + hook), // top hook
                     ],
                     closed: false,
-                    stroke: Some(stirrup_outline_stroke(settings, tie_color.clone())),
+                    stroke: Some(stirrup_stroke.clone()),
                     fill: None,
                     group: Some("stirrup".to_string()),
                 });
