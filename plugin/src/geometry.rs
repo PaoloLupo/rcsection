@@ -135,12 +135,22 @@ pub fn generate(nodes: &[ast::AstNode]) -> Vec<Drawing> {
     drawings
 }
 
-#[derive(Default)]
 struct GlobalSettings {
     scale: Option<f64>,
     cover: f64,
     stroke: Option<Stroke>,
     unit_factor: f64,
+}
+
+impl Default for GlobalSettings {
+    fn default() -> Self {
+        Self {
+            scale: None,
+            cover: 0.0,
+            stroke: None,
+            unit_factor: 1.0,
+        }
+    }
 }
 
 fn parse_unit_factor(unit: &str) -> f64 {
