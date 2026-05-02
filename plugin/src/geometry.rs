@@ -114,6 +114,9 @@ pub fn generate(nodes: &[ast::AstNode]) -> Vec<Drawing> {
                         ast::GlobalProperty::Unit(u) => {
                             global_settings.unit_factor = parse_unit_factor(u);
                         }
+                        ast::GlobalProperty::Monochrome(m) => {
+                            global_settings.monochrome = *m;
+                        }
                         _ => {}
                     }
                 }
@@ -140,6 +143,7 @@ struct GlobalSettings {
     cover: f64,
     stroke: Option<Stroke>,
     unit_factor: f64,
+    monochrome: bool,
 }
 
 impl Default for GlobalSettings {
@@ -149,6 +153,7 @@ impl Default for GlobalSettings {
             cover: 0.0,
             stroke: None,
             unit_factor: 1.0,
+            monochrome: false,
         }
     }
 }
@@ -353,7 +358,11 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
 
         // Add stirrup in section view
         if let Some(ties) = &props.ties {
-            let tie_color = get_color_for_size(&ties.size);
+            let tie_color = if settings.monochrome {
+                "black".to_string()
+            } else {
+                get_color_for_size(&ties.size)
+            };
             let tie_thickness = parse_size(&ties.size);
             let bend_radius = get_tie_bend_radius(&ties.size);
             if let Some(shape) = &props.shape {
@@ -415,15 +424,21 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
                     .cloned()
                     .unwrap_or((1.0, "black".to_string()));
 
+                let (stroke_color, fill_color) = if settings.monochrome {
+                    ("black".to_string(), None)
+                } else {
+                    (color.clone(), Some(color))
+                };
+
                 d.add(Primitive::Circle {
                     x: *x,
                     y: *y,
                     radius,
                     stroke: Some(Stroke {
-                        color: color.clone(),
+                        color: stroke_color,
                         width: 0.05,
                     }),
-                    fill: Some(color),
+                    fill: fill_color,
                     group: Some("rebar".to_string()),
                 });
             }
@@ -1206,6 +1221,7 @@ mod tests {
             cover: 4.0,
             stroke: None,
             unit_factor: 1.0,
+            monochrome: false,
         };
         assert_eq!(get_cover(&props, &settings), 5.0);
     }
@@ -1225,6 +1241,7 @@ mod tests {
             cover: 4.0,
             stroke: None,
             unit_factor: 1.0,
+            monochrome: false,
         };
         assert_eq!(get_cover(&props, &settings), 4.0);
     }
@@ -1247,6 +1264,7 @@ mod tests {
             cover: 0.5,
             stroke: None,
             unit_factor: 1.0,
+            monochrome: false,
         };
         assert_eq!(get_cover(&props, &settings), 2.5);
     }
@@ -1269,6 +1287,7 @@ mod tests {
             cover: 40.0,
             stroke: None,
             unit_factor: 0.1,
+            monochrome: false,
         };
         assert_eq!(get_cover(&props, &settings), 4.0);
     }

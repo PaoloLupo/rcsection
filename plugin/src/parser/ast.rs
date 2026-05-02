@@ -20,6 +20,7 @@ pub enum GlobalProperty {
     Stroke(StrokeConfig),
     Font(FontConfig),
     Cover(f64),
+    Monochrome(bool),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

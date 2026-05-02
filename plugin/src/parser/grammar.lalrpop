@@ -19,6 +19,8 @@ GlobalProperty: GlobalProperty = {
     "scale" <n:Num> ":" <m:Num> => GlobalProperty::Scale(n / m),
     "stroke" <c:StringLiteral> <w:Num> => GlobalProperty::Stroke(StrokeConfig { color: c, width: w }),
     "cover" <n:Num> => GlobalProperty::Cover(n),
+    "monochrome" => GlobalProperty::Monochrome(true),
+    "color" => GlobalProperty::Monochrome(false),
 };
 
 SectionProperties: SectionProperties = {
@@ -162,7 +164,7 @@ match {
     r"\s*" => {},
     r"//[^\n\r]*[\n\r]*" => {},
     "set", "section", "drawing", "view", "shape", "concrete", "rebar", "ties",
-    "unit", "scale", "stroke", "font", "cover", "fc",
+    "unit", "scale", "stroke", "font", "cover", "fc", "monochrome", "color",
     "rect", "circle", "line", "label", "dim", "at", "to", "rounded", "callout", "legend",
     "top", "bot", "sides", "perim", "grid", "uniform", "polygon",
     "longitudinal", "both", "elevation",
