@@ -368,29 +368,53 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
             if let Some(shape) = &props.shape {
                 match shape {
                     ast::Shape::Rect { width, height } => {
+                        let outline = Stroke {
+                            color: tie_color.clone(),
+                            width: 0.03,
+                        };
+                        // Outer contour of stirrup
                         d.add(Primitive::Rect {
-                            x: -width / 2.0 + cover + tie_thickness / 2.0,
-                            y: -height / 2.0 + cover + tie_thickness / 2.0,
-                            width: width - 2.0 * cover - tie_thickness,
-                            height: height - 2.0 * cover - tie_thickness,
+                            x: -width / 2.0 + cover,
+                            y: -height / 2.0 + cover,
+                            width: width - 2.0 * cover,
+                            height: height - 2.0 * cover,
                             rounded: Some(bend_radius),
-                            stroke: Some(Stroke {
-                                color: tie_color,
-                                width: 0.03, // thin line, not bar diameter
-                            }),
+                            stroke: Some(outline.clone()),
+                            fill: None,
+                            group: Some("stirrup".to_string()),
+                        });
+                        // Inner contour of stirrup (hole)
+                        d.add(Primitive::Rect {
+                            x: -width / 2.0 + cover + tie_thickness,
+                            y: -height / 2.0 + cover + tie_thickness,
+                            width: width - 2.0 * cover - 2.0 * tie_thickness,
+                            height: height - 2.0 * cover - 2.0 * tie_thickness,
+                            rounded: Some(bend_radius.max(0.0)),
+                            stroke: Some(outline),
                             fill: None,
                             group: Some("stirrup".to_string()),
                         });
                     }
                     ast::Shape::Circle { diameter } => {
+                        let outline = Stroke {
+                            color: tie_color.clone(),
+                            width: 0.03,
+                        };
+                        // Outer contour
                         d.add(Primitive::Circle {
                             x: 0.0,
                             y: 0.0,
-                            radius: diameter / 2.0 - cover - tie_thickness / 2.0,
-                            stroke: Some(Stroke {
-                                color: tie_color,
-                                width: 0.03,
-                            }),
+                            radius: diameter / 2.0 - cover,
+                            stroke: Some(outline.clone()),
+                            fill: None,
+                            group: Some("stirrup".to_string()),
+                        });
+                        // Inner contour (hole)
+                        d.add(Primitive::Circle {
+                            x: 0.0,
+                            y: 0.0,
+                            radius: (diameter / 2.0 - cover - tie_thickness).max(0.0),
+                            stroke: Some(outline),
                             fill: None,
                             group: Some("stirrup".to_string()),
                         });
