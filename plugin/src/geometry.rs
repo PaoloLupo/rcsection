@@ -420,14 +420,16 @@ fn generate_section(section: &ast::Section, settings: &GlobalSettings) -> Vec<Dr
         ast::SectionKind::Column | ast::SectionKind::Wall => (false, true),
     };
 
-    let show_section = matches!(&props.view, Some(View::Section) | Some(View::Both) | None);
+    let show_section = matches!(&props.view, Some(View::Section) | Some(View::Both) | Some(View::Top) | None);
     let show_longitudinal = match &props.view {
         Some(View::Longitudinal) | Some(View::Both) => true,
-        _ => default_longitudinal,
+        Some(View::Section) | Some(View::Elevation) | Some(View::Top) => false,
+        None => default_longitudinal,
     };
     let show_elevation = match &props.view {
         Some(View::Elevation) | Some(View::Both) => true,
-        _ => default_elevation,
+        Some(View::Section) | Some(View::Longitudinal) | Some(View::Top) => false,
+        None => default_elevation,
     };
 
     // Get dimensions for both views
