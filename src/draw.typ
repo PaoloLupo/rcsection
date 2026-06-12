@@ -1,4 +1,4 @@
-#import "@preview/cetz:0.4.2"
+#import "@preview/cetz:0.5.2"
 
 #let parse-color(c) = {
   if c.starts-with("#") { rgb(c) } else if c == "black" { black } else if c == "blue" { blue } else if c == "red" {
